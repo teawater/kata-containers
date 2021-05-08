@@ -794,6 +794,46 @@ func (q *qemu) setupVirtioMem() error {
 	return err
 }
 
+func (q *qemu) setupSwap() error {
+	swapFile := filepath.Join(q.store.RunVMStoragePath(), q.id, "swapfile")
+
+	swapFD, err := os.OpenFile(swapFile, os.O_CREATE, 0600)
+	if err != nil {
+		err = fmt.Errorf("creat swapfile %s fail %s", swapFile, err.Error())
+		q.Logger().Error(err)
+		return err
+	}
+	swapFD.Close()
+	/*defer func() {
+		if err != nil {
+			os.Remove(swapFile)
+		}
+	}()*/
+
+	err = os.Truncate(swapFile, 8<<30)
+	if err != nil {
+		err = fmt.Errorf("truncate swapfile %s fail %s", swapFile, err.Error())
+		q.Logger().Error(err)
+		return err
+	}
+
+	err = q.qmpMonitorCh.qmp.ExecuteBlockdevAddWithCache(q.qmpMonitorCh.ctx, swapFile, "swapfile", false, true, false)
+	if err == nil {
+		q.Logger().Infof("add swapfile %s to VM success", swapFile)
+	} else {
+		err = fmt.Errorf("add swapfile %s to VM fail %s", swapFile, err.Error())
+		q.Logger().Error(err)
+		return err
+	}
+	/*defer func() {
+		if err != nil {
+			q.qmpMonitorCh.qmp.ExecuteBlockdevDel(q.qmpMonitorCh.ctx, "swapfile")
+		}
+	}()*/
+
+	return nil
+}
+
 // startSandbox will start the Sandbox's VM.
 func (q *qemu) startSandbox(ctx context.Context, timeout int) error {
 	span, ctx := q.trace(ctx, "startSandbox")
@@ -887,8 +927,17 @@ func (q *qemu) startSandbox(ctx context.Context, timeout int) error {
 	}
 
 	if q.config.VirtioMem {
-		err = q.setupVirtioMem()
+		if err = q.setupVirtioMem(); err != nil {
+			return err
+		}
 	}
+
+	go func() {
+		q.Logger().Info("teago sleep")
+		time.Sleep(50 * time.Second)
+		q.Logger().Info("teago run")
+		err = q.setupSwap()
+	}()
 
 	return err
 }
