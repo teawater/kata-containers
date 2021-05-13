@@ -14,6 +14,7 @@ import (
 	"math"
 	"net"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"syscall"
@@ -990,6 +991,55 @@ func (cw *consoleWatcher) stop() {
 	}
 }
 
+func (s *Sandbox) addSwap(ctx context.Context, id string, size int64) error {
+	swapFile := filepath.Join(getSandboxPath(s.id), id)
+
+	swapFD, err := os.OpenFile(swapFile, os.O_CREATE, 0600)
+	if err != nil {
+		err = fmt.Errorf("creat swapfile %s fail %s", swapFile, err.Error())
+		s.Logger().Error(err)
+		return err
+	}
+	swapFD.Close()
+	defer func() {
+		if err != nil {
+			os.Remove(swapFile)
+		}
+	}()
+
+	err = os.Truncate(swapFile, size)
+	if err != nil {
+		err = fmt.Errorf("truncate swapfile %s fail %s", swapFile, err.Error())
+		s.Logger().Error(err)
+		return err
+	}
+
+	blockDevice := &config.BlockDrive{
+		File:   swapFile,
+		Format: "raw",
+		ID:     id,
+		Swap:   true,
+	}
+	_, err = s.hypervisor.hotplugAddDevice(ctx, blockDevice, blockDev)
+	if err == nil {
+		s.Logger().Infof("add swapfile %s to VM success", swapFile)
+	} else {
+		err = fmt.Errorf("add swapfile %s to VM fail %s", swapFile, err.Error())
+		s.Logger().Error(err)
+		return err
+	}
+	defer func() {
+		if err != nil {
+			_, e := s.hypervisor.hotplugRemoveDevice(ctx, blockDevice, blockDev)
+			if e != nil {
+				s.Logger().Error("remove swapfile %s to VM fail %s", swapFile, err.Error())
+			}
+		}
+	}()
+
+	return nil
+}
+
 // startVM starts the VM.
 func (s *Sandbox) startVM(ctx context.Context) (err error) {
 	span, ctx := s.trace(ctx, "startVM")
@@ -1067,6 +1117,14 @@ func (s *Sandbox) startVM(ctx context.Context) (err error) {
 	}
 
 	s.Logger().Info("Agent started in the sandbox")
+
+	defer func() {
+		if err != nil {
+			if e := s.agent.stopSandbox(ctx, s); e != nil {
+				s.Logger().WithError(e).WithField("sandboxid", s.id).Warning("Agent did not stop sandbox")
+			}
+		}
+	}()
 
 	return nil
 }
