@@ -75,6 +75,14 @@ func (p PciPath) IsNil() bool {
 	return p.slots == nil
 }
 
+func (p PciPath) ToArray() []uint8 {
+	var slots []uint8
+	for _, slot := range p.slots {
+		slots = append(slots, slot.slot)
+	}
+	return slots
+}
+
 func PciPathFromString(s string) (PciPath, error) {
 	if s == "" {
 		return PciPath{}, nil

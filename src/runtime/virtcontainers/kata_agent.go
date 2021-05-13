@@ -2177,6 +2177,14 @@ func (k *kataAgent) copyFile(ctx context.Context, src, dst string) error {
 	return nil
 }
 
+func (k *kataAgent) addSwap(ctx context.Context, PCIPath vcTypes.PciPath) error {
+	span, ctx := k.trace(ctx, "addSwap")
+	defer span.End()
+
+	_, err := k.sendReq(ctx, &grpc.AddSwapRequest{PCIPath: PCIPath.ToArray()})
+	return err
+}
+
 func (k *kataAgent) markDead(ctx context.Context) {
 	k.Logger().Infof("mark agent dead")
 	k.dead = true
