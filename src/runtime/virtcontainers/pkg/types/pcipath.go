@@ -75,10 +75,10 @@ func (p PciPath) IsNil() bool {
 	return p.slots == nil
 }
 
-func (p PciPath) ToArray() []uint8 {
-	var slots []uint8
+func (p PciPath) ToArray() []uint32 {
+	var slots []uint32
 	for _, slot := range p.slots {
-		slots = append(slots, slot.slot)
+		slots = append(slots, uint32(slot.slot))
 	}
 	return slots
 }

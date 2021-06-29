@@ -505,7 +505,7 @@ message OOMEvent {
 }
 
 message AddSwapRequest {
-	repeated uint8 PCIPath = 1;
+	repeated uint32 PCIPath = 1;
 }
 
 message GetMetricsRequest {}
