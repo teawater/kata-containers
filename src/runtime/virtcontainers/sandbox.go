@@ -1050,6 +1050,13 @@ func (s *Sandbox) addSwap(ctx context.Context, id string, size int64) error {
 		}
 	}()
 
+	err = s.agent.addSwap(ctx, blockDevice.PCIPath)
+	if err != nil {
+		err = fmt.Errorf("agent add swapfile %s to VM fail %s", swapFile, err.Error())
+		s.Logger().Error(err)
+		return err
+	}
+
 	return nil
 }
 

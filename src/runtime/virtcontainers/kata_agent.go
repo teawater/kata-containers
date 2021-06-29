@@ -138,6 +138,7 @@ const (
 	grpcStopTracingRequest       = "grpc.StopTracingRequest"
 	grpcGetOOMEventRequest       = "grpc.GetOOMEventRequest"
 	grpcGetMetricsRequest        = "grpc.GetMetricsRequest"
+	grpcAddSwapRequest           = "grpc.AddSwapRequest"
 )
 
 // newKataAgent returns an agent from an agent type.
@@ -2016,6 +2017,9 @@ func (k *kataAgent) installReqFunc(c *kataclient.AgentClient) {
 	}
 	k.reqHandlers[grpcGetMetricsRequest] = func(ctx context.Context, req interface{}) (interface{}, error) {
 		return k.client.AgentServiceClient.GetMetrics(ctx, req.(*grpc.GetMetricsRequest))
+	}
+	k.reqHandlers[grpcAddSwapRequest] = func(ctx context.Context, req interface{}) (interface{}, error) {
+		return k.client.AgentServiceClient.AddSwap(ctx, req.(*grpc.AddSwapRequest))
 	}
 }
 
