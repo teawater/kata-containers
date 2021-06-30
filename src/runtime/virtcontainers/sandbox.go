@@ -1034,10 +1034,8 @@ func (s *Sandbox) addSwap(ctx context.Context, id string, size int64) error {
 		Swap:   true,
 	}
 	_, err = s.hypervisor.hotplugAddDevice(ctx, blockDevice, blockDev)
-	if err == nil {
-		s.Logger().Infof("add swapfile %s to VM success", swapFile)
-	} else {
-		err = fmt.Errorf("add swapfile %s to VM fail %s", swapFile, err.Error())
+	if err != nil {
+		err = fmt.Errorf("add swapfile %s device to VM fail %s", swapFile, err.Error())
 		s.Logger().Error(err)
 		return err
 	}
@@ -1056,6 +1054,8 @@ func (s *Sandbox) addSwap(ctx context.Context, id string, size int64) error {
 		s.Logger().Error(err)
 		return err
 	}
+
+	s.Logger().Infof("add swapfile %s size %d to VM success", swapFile, size)
 
 	return nil
 }
@@ -1238,6 +1238,9 @@ func (s *Sandbox) CreateContainer(ctx context.Context, contConfig ContainerConfi
 	if err = s.storeSandbox(ctx); err != nil {
 		return nil, err
 	}
+
+	//XXX teawater
+	s.addSwap(ctx, "swap0", 1<<30)
 
 	return c, nil
 }
@@ -1935,9 +1938,6 @@ func (s *Sandbox) updateResources(ctx context.Context) error {
 	if err := s.agent.onlineCPUMem(ctx, 0, false); err != nil {
 		return err
 	}
-
-	//XXX teawater
-	//s.addSwap(ctx, "swap0", 1<<30)
 
 	return nil
 }
