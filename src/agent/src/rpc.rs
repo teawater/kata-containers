@@ -21,7 +21,7 @@ use oci::{LinuxNamespace, Root, Spec};
 use protobuf::{RepeatedField, SingularPtrField};
 use protocols::agent::{
     AgentDetails, CopyFileRequest, GuestDetailsResponse, Interfaces, Metrics, OOMEvent,
-    ReadStreamResponse, Routes, StatsContainerResponse, WaitProcessResponse, WriteStreamResponse,
+    ReadStreamResponse, Routes, StatsContainerResponse, WaitProcessResponse, WriteStreamResponse, AddSwapRequest,
 };
 use protocols::empty::Empty;
 use protocols::health::{
@@ -1141,8 +1141,10 @@ impl protocols::agent_ttrpc::AgentService for AgentService {
     async fn add_swap(
         &self,
         _ctx: &TtrpcContext,
-        _req: protocols::agent::AddSwapRequest,
+        req: protocols::agent::AddSwapRequest,
     ) -> ttrpc::Result<Empty> {
+        do_add_swap(&req).map_err(|e| ttrpc_error(ttrpc::Code::INTERNAL, e.to_string()))?;
+
         Ok(Empty::new())
     }
 }
@@ -1491,6 +1493,10 @@ fn do_copy_file(req: &CopyFileRequest) -> Result<()> {
 
     fs::rename(tmpfile, path)?;
 
+    Ok(())
+}
+
+fn do_add_swap(_req: &AddSwapRequest) -> Result<()> {
     Ok(())
 }
 

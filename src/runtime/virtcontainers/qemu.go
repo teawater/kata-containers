@@ -1232,7 +1232,8 @@ func (q *qemu) hotplugAddBlockDevice(ctx context.Context, drive *config.BlockDri
 
 	if drive.Swap {
 		//XXX teawater
-		err = q.qmpMonitorCh.qmp.ExecuteBlockdevAddWithCache(q.qmpMonitorCh.ctx, drive.File, drive.ID, false, true, false)
+		//err = q.qmpMonitorCh.qmp.ExecuteBlockdevAddWithCache(q.qmpMonitorCh.ctx, drive.File, drive.ID, false, false, false)
+		err = q.qmpMonitorCh.qmp.ExecuteBlockdevAdd(q.qmpMonitorCh.ctx, drive.File, drive.ID, drive.ReadOnly)
 	} else if q.config.BlockDeviceCacheSet {
 		err = q.qmpMonitorCh.qmp.ExecuteBlockdevAddWithCache(q.qmpMonitorCh.ctx, drive.File, drive.ID, q.config.BlockDeviceCacheDirect, q.config.BlockDeviceCacheNoflush, drive.ReadOnly)
 	} else {
