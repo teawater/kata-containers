@@ -1137,6 +1137,14 @@ impl protocols::agent_ttrpc::AgentService for AgentService {
 
         Err(ttrpc_error(ttrpc::Code::INTERNAL, ""))
     }
+
+    async fn add_swap(
+        &self,
+        _ctx: &TtrpcContext,
+        _req: protocols::agent::AddSwapRequest,
+    ) -> ttrpc::Result<Empty> {
+        Ok(Empty::new())
+    }
 }
 
 #[derive(Clone)]
