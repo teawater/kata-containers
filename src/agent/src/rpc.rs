@@ -20,8 +20,9 @@ use anyhow::{anyhow, Context, Result};
 use oci::{LinuxNamespace, Root, Spec};
 use protobuf::{RepeatedField, SingularPtrField};
 use protocols::agent::{
-    AgentDetails, CopyFileRequest, GuestDetailsResponse, Interfaces, Metrics, OOMEvent,
-    ReadStreamResponse, Routes, StatsContainerResponse, WaitProcessResponse, WriteStreamResponse, AddSwapRequest,
+    AddSwapRequest, AgentDetails, CopyFileRequest, GuestDetailsResponse, Interfaces, Metrics,
+    OOMEvent, ReadStreamResponse, Routes, StatsContainerResponse, WaitProcessResponse,
+    WriteStreamResponse,
 };
 use protocols::empty::Empty;
 use protocols::health::{

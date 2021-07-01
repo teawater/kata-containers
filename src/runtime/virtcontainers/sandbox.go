@@ -1243,6 +1243,13 @@ func (s *Sandbox) CreateContainer(ctx context.Context, contConfig ContainerConfi
 	//s.addSwap(ctx, "swap0", 1<<30)
 	s.addSwap(ctx, "swap1", 1<<30)
 
+	/*go func() {
+		s.Logger().Info("teago sleep")
+		time.Sleep(50 * time.Second)
+		s.Logger().Info("teago run")
+		s.addSwap(ctx, "swap1", 1<<30)
+	}()*/
+
 	return c, nil
 }
 
