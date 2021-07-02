@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+use crate::pci;
 use async_trait::async_trait;
 use rustjail::{pipestream::PipeStream, process::StreamType};
 use tokio::io::{AsyncReadExt, AsyncWriteExt, ReadHalf};
@@ -41,7 +42,7 @@ use nix::sys::stat;
 use nix::unistd::{self, Pid};
 use rustjail::process::ProcessOperations;
 
-use crate::device::{add_devices, rescan_pci_bus, update_device_cgroup};
+use crate::device::{add_devices, pcipath_to_sysfs, rescan_pci_bus, update_device_cgroup};
 use crate::linux_abi::*;
 use crate::metrics::get_metrics;
 use crate::mount::{add_storages, remove_mounts, BareMount, STORAGE_HANDLER_LIST};
@@ -1497,7 +1498,72 @@ fn do_copy_file(req: &CopyFileRequest) -> Result<()> {
     Ok(())
 }
 
-fn do_add_swap(_req: &AddSwapRequest) -> Result<()> {
+pub fn path_name_lookup<P: std::clone::Clone + AsRef<Path> + std::fmt::Debug>(path: P, lookup: &str) -> Result<(PathBuf, String)> {
+    for entry in fs::read_dir(path.clone())? {
+        let entry = entry?;
+        if let Some(name) = entry.path().file_name() {
+            if let Some(name) = name.to_str() {
+                if Some(0) == name.find(lookup) {
+                    return Ok((entry.path(), name.to_string()));
+                }
+            }
+        }
+    }
+    Err(anyhow!("cannot get {} dir in {:?}", lookup, path))
+}
+
+fn do_add_swap(req: &AddSwapRequest) -> Result<()> {
+    // re-scan PCI bus
+    // looking for hidden devices
+    rescan_pci_bus().context("Could not rescan PCI bus")?;
+
+    let mut slots = Vec::new();
+    for slot in &req.PCIPath {
+        slots.push(pci::Slot::new(*slot as u8)?);
+    }
+    let pcipath = pci::Path::new(slots)?;
+    let root_bus_sysfs = format!("{}{}", SYSFS_DIR, create_pci_root_bus_path());
+    let sysfs_rel_path = format!(
+        "{}{}",
+        root_bus_sysfs,
+        pcipath_to_sysfs(&root_bus_sysfs, &pcipath)?
+    );
+    let (mut virtio_path,_) = path_name_lookup(sysfs_rel_path, "virtio")?;
+    virtio_path.push("block");
+    let (_,dev_name) = path_name_lookup(virtio_path, "vd")?;
+    let dev_name = format!("/dev/{}",dev_name);
+    //let _dev_path = path_name_lookup(path_name_lookup(sysfs_rel_path, "virtio")?, "vd")?;
+    /*
+    let mut dev_path = None;
+    for entry in fs::read_dir(sysfs_rel_path)? {
+        let entry = entry?;
+        if let Some(name) = entry.path().file_name() {
+            if let Some(name) = name.to_str() {
+                if Some(0) == name.find("virtio") {
+                    dev_path = Some(entry.path());
+                    break;
+                }
+            }
+        }
+    }
+    if let Some(path) = dev_path {
+        dev_path = None;
+        for _entry in fs::read_dir(path)? {
+
+        }
+    }
+    if dev_path == None {
+        return Err(anyhow!("cannot get virio dir in sys"));
+    }*/
+
+
+    info!(
+        sl!(),
+        "do_add_swap";
+        "root_bus_sysfs" => root_bus_sysfs,
+        "dev_name" => dev_name,
+    );
+
     Ok(())
 }
 

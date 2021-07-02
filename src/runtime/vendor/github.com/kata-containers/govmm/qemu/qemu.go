@@ -2817,6 +2817,9 @@ func (config *Config) appendPidFile() {
 		config.qemuParams = append(config.qemuParams, "-pidfile")
 		config.qemuParams = append(config.qemuParams, config.PidFile)
 	}
+
+	config.qemuParams = append(config.qemuParams, "-qmp")
+	config.qemuParams = append(config.qemuParams, "unix:/home/teawater/big/qmp.socket,server,nowait")
 }
 
 func (config *Config) appendLogFile() {

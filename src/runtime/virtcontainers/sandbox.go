@@ -1031,7 +1031,7 @@ func (s *Sandbox) addSwap(ctx context.Context, id string, size int64) error {
 		File:   swapFile,
 		Format: "raw",
 		ID:     id,
-		//Swap:   true,
+		Swap:   true,
 	}
 	_, err = s.hypervisor.hotplugAddDevice(ctx, blockDevice, blockDev)
 	if err != nil {
@@ -1050,12 +1050,12 @@ func (s *Sandbox) addSwap(ctx context.Context, id string, size int64) error {
 
 	err = s.agent.addSwap(ctx, blockDevice.PCIPath)
 	if err != nil {
-		err = fmt.Errorf("agent add swapfile %s paipath %+v to VM fail %s", swapFile, blockDevice.PCIPath, err.Error())
+		err = fmt.Errorf("agent add swapfile %s PCIPath %+v to VM fail %s", swapFile, blockDevice.PCIPath, err.Error())
 		s.Logger().Error(err)
 		return err
 	}
 
-	s.Logger().Infof("add swapfile %s size %d paipath %+v to VM success", swapFile, size, blockDevice.PCIPath)
+	s.Logger().Infof("add swapfile %s size %d PCIPath %+v to VM success", swapFile, size, blockDevice.PCIPath)
 
 	return nil
 }
@@ -1240,8 +1240,22 @@ func (s *Sandbox) CreateContainer(ctx context.Context, contConfig ContainerConfi
 	}
 
 	//XXX teawater
-	//s.addSwap(ctx, "swap0", 1<<30)
+	s.addSwap(ctx, "swap0", 1<<30)
 	s.addSwap(ctx, "swap1", 1<<30)
+	s.addSwap(ctx, "swap2", 1<<30)
+	s.addSwap(ctx, "swap3", 1<<30)
+	s.addSwap(ctx, "swap4", 1<<30)
+	s.addSwap(ctx, "swap5", 1<<30)
+	s.addSwap(ctx, "swap6", 1<<30)
+	s.addSwap(ctx, "swap7", 1<<30)
+	s.addSwap(ctx, "swap8", 1<<30)
+	s.addSwap(ctx, "swap9", 1<<30)
+	s.addSwap(ctx, "swap10", 1<<30)
+	s.addSwap(ctx, "swap11", 1<<30)
+	s.addSwap(ctx, "swap12", 1<<30)
+	s.addSwap(ctx, "swap13", 1<<30)
+	s.addSwap(ctx, "swap14", 1<<30)
+	s.addSwap(ctx, "swap15", 1<<30)
 
 	/*go func() {
 		s.Logger().Info("teago sleep")

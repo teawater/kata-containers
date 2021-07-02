@@ -1121,6 +1121,7 @@ func (q *QMP) ExecutePCIDeviceAdd(ctx context.Context, blockdevID, devID, driver
 		}
 	}
 
+	q.cfg.Logger.Errorf("ExecutePCIDeviceAdd %+v", args)
 	return q.executeCommand(ctx, "device_add", args, nil)
 }
 
