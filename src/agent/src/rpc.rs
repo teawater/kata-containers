@@ -9,8 +9,8 @@ use rustjail::{pipestream::PipeStream, process::StreamType};
 use tokio::io::{AsyncReadExt, AsyncWriteExt, ReadHalf};
 use tokio::sync::Mutex;
 
-use std::io;
 use std::ffi::CString;
+use std::io;
 use std::path::Path;
 use std::sync::Arc;
 use ttrpc::{
@@ -55,7 +55,7 @@ use crate::sandbox::Sandbox;
 use crate::version::{AGENT_VERSION, API_VERSION};
 use crate::AGENT_CONFIG;
 
-use libc::{self, c_ushort, pid_t, winsize, TIOCSWINSZ, c_char};
+use libc::{self, c_char, c_ushort, pid_t, winsize, TIOCSWINSZ};
 use std::convert::TryFrom;
 use std::fs;
 use std::os::unix::prelude::PermissionsExt;
@@ -1539,9 +1539,7 @@ fn do_add_swap(req: &AddSwapRequest) -> Result<()> {
     let dev_name = format!("/dev/{}", dev_name);
 
     let c_str = CString::new(dev_name)?;
-    let ret = unsafe {
-        libc::swapon(c_str.as_ptr() as *const c_char, 0)
-    };
+    let ret = unsafe { libc::swapon(c_str.as_ptr() as *const c_char, 0) };
     if ret != 0 {
         return Err(anyhow!(
             "libc::swapon get error {}",

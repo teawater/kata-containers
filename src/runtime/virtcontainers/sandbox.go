@@ -997,14 +997,14 @@ func (cw *consoleWatcher) stop() {
 	}
 }
 
-func (s *Sandbox) addSwap(ctx context.Context, id string, size int64) error {
+func (s *Sandbox) addSwap(ctx context.Context, id string, size int64) (*config.BlockDrive, error) {
 	swapFile := filepath.Join(getSandboxPath(s.id), id)
 
 	swapFD, err := os.OpenFile(swapFile, os.O_CREATE, 0600)
 	if err != nil {
 		err = fmt.Errorf("creat swapfile %s fail %s", swapFile, err.Error())
 		s.Logger().Error(err)
-		return err
+		return nil, err
 	}
 	swapFD.Close()
 	defer func() {
@@ -1017,14 +1017,14 @@ func (s *Sandbox) addSwap(ctx context.Context, id string, size int64) error {
 	if err != nil {
 		err = fmt.Errorf("truncate swapfile %s fail %s", swapFile, err.Error())
 		s.Logger().Error(err)
-		return err
+		return nil, err
 	}
 
 	err = exec.CommandContext(ctx, "mkswap", swapFile).Run()
 	if err != nil {
 		err = fmt.Errorf("mkswap swapfile %s fail %s", swapFile, err.Error())
 		s.Logger().Error(err)
-		return err
+		return nil, err
 	}
 
 	blockDevice := &config.BlockDrive{
@@ -1037,7 +1037,7 @@ func (s *Sandbox) addSwap(ctx context.Context, id string, size int64) error {
 	if err != nil {
 		err = fmt.Errorf("add swapfile %s device to VM fail %s", swapFile, err.Error())
 		s.Logger().Error(err)
-		return err
+		return nil, err
 	}
 	defer func() {
 		if err != nil {
@@ -1052,12 +1052,16 @@ func (s *Sandbox) addSwap(ctx context.Context, id string, size int64) error {
 	if err != nil {
 		err = fmt.Errorf("agent add swapfile %s PCIPath %+v to VM fail %s", swapFile, blockDevice.PCIPath, err.Error())
 		s.Logger().Error(err)
-		return err
+		return nil, err
 	}
 
 	s.Logger().Infof("add swapfile %s size %d PCIPath %+v to VM success", swapFile, size, blockDevice.PCIPath)
 
-	return nil
+	return blockDevice, nil
+}
+
+func (s *Sandbox) removeSwap(ctx context.Context, blockDevice *config.BlockDrive) error {
+	return os.Remove(blockDevice.File)
 }
 
 // startVM starts the VM.
@@ -1238,31 +1242,6 @@ func (s *Sandbox) CreateContainer(ctx context.Context, contConfig ContainerConfi
 	if err = s.storeSandbox(ctx); err != nil {
 		return nil, err
 	}
-
-	//XXX teawater
-	s.addSwap(ctx, "swap0", 1<<30)
-	s.addSwap(ctx, "swap1", 1<<30)
-	s.addSwap(ctx, "swap2", 1<<30)
-	s.addSwap(ctx, "swap3", 1<<30)
-	s.addSwap(ctx, "swap4", 1<<30)
-	s.addSwap(ctx, "swap5", 1<<30)
-	s.addSwap(ctx, "swap6", 1<<30)
-	s.addSwap(ctx, "swap7", 1<<30)
-	s.addSwap(ctx, "swap8", 1<<30)
-	s.addSwap(ctx, "swap9", 1<<30)
-	s.addSwap(ctx, "swap10", 1<<30)
-	s.addSwap(ctx, "swap11", 1<<30)
-	s.addSwap(ctx, "swap12", 1<<30)
-	s.addSwap(ctx, "swap13", 1<<30)
-	s.addSwap(ctx, "swap14", 1<<30)
-	s.addSwap(ctx, "swap15", 1<<30)
-
-	/*go func() {
-		s.Logger().Info("teago sleep")
-		time.Sleep(50 * time.Second)
-		s.Logger().Info("teago run")
-		s.addSwap(ctx, "swap1", 1<<30)
-	}()*/
 
 	return c, nil
 }
