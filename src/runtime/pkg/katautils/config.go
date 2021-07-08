@@ -137,6 +137,7 @@ type hypervisor struct {
 	DisableVhostNet         bool     `toml:"disable_vhost_net"`
 	GuestMemoryDumpPaging   bool     `toml:"guest_memory_dump_paging"`
 	ConfidentialGuest       bool     `toml:"confidential_guest"`
+	GuestSwap               bool     `toml:"enable_guest_swap"`
 }
 
 type runtime struct {
@@ -715,6 +716,7 @@ func newQemuHypervisorConfig(h hypervisor) (vc.HypervisorConfig, error) {
 		GuestMemoryDumpPath:     h.GuestMemoryDumpPath,
 		GuestMemoryDumpPaging:   h.GuestMemoryDumpPaging,
 		ConfidentialGuest:       h.ConfidentialGuest,
+		GuestSwap:               h.GuestSwap,
 	}, nil
 }
 
@@ -1070,6 +1072,7 @@ func GetDefaultHypervisorConfig() vc.HypervisorConfig {
 		TxRateLimiterMaxRate:    defaultTxRateLimiterMaxRate,
 		SGXEPCSize:              defaultSGXEPCSize,
 		ConfidentialGuest:       defaultConfidentialGuest,
+		GuestSwap:               defaultGuestSwap,
 	}
 }
 

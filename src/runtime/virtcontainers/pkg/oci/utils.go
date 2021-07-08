@@ -646,6 +646,16 @@ func addHypervisorMemoryOverrides(ocispec specs.Spec, sbConfig *vc.SandboxConfig
 
 		sbConfig.HypervisorConfig.IOMMUPlatform = deviceIOMMU
 	}
+
+	if value, ok := ocispec.Annotations[vcAnnotations.EnableGuestSwap]; ok {
+		enableGuestSwap, err := strconv.ParseBool(value)
+		if err != nil {
+			return fmt.Errorf("Error parsing annotation for enable_guest_swap: Please specify boolean value 'true|false'")
+		}
+
+		sbConfig.HypervisorConfig.GuestSwap = enableGuestSwap
+	}
+
 	return nil
 }
 
