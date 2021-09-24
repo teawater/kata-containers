@@ -473,6 +473,9 @@ type HypervisorConfig struct {
 
 	// Rootless is used to enable rootless VMM process
 	Rootless bool
+
+	// Current kernel is unikernel
+	Unikernel bool
 }
 
 // vcpu mapping from vcpu number to thread number

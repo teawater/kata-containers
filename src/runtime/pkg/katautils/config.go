@@ -135,6 +135,7 @@ type hypervisor struct {
 	ConfidentialGuest       bool     `toml:"confidential_guest"`
 	GuestSwap               bool     `toml:"enable_guest_swap"`
 	Rootless                bool     `toml:"rootless"`
+	Unikernel               bool     `toml:"unikernel"`
 }
 
 type runtime struct {
@@ -715,6 +716,7 @@ func newQemuHypervisorConfig(h hypervisor) (vc.HypervisorConfig, error) {
 		ConfidentialGuest:       h.ConfidentialGuest,
 		GuestSwap:               h.GuestSwap,
 		Rootless:                h.Rootless,
+		Unikernel:               h.Unikernel,
 	}, nil
 }
 
