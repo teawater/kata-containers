@@ -44,6 +44,9 @@ const (
 	// ClhHypervisor is the ICH hypervisor.
 	ClhHypervisor HypervisorType = "clh"
 
+	// LibhermitHypervisor is the Libhermit hypervisor.
+	LibhermitHypervisor HypervisorType = "libhermit"
+
 	// MockHypervisor is a mock hypervisor for testing purposes
 	MockHypervisor HypervisorType = "mock"
 )
@@ -159,6 +162,9 @@ func (hType *HypervisorType) Set(value string) error {
 	case "clh":
 		*hType = ClhHypervisor
 		return nil
+	case "libhermit":
+		*hType = LibhermitHypervisor
+		return nil
 	case "mock":
 		*hType = MockHypervisor
 		return nil
@@ -178,6 +184,8 @@ func (hType *HypervisorType) String() string {
 		return string(AcrnHypervisor)
 	case ClhHypervisor:
 		return string(ClhHypervisor)
+	case LibhermitHypervisor:
+		return string(LibhermitHypervisor)
 	case MockHypervisor:
 		return string(MockHypervisor)
 	default:
@@ -205,6 +213,10 @@ func newHypervisor(hType HypervisorType) (hypervisor, error) {
 		}, nil
 	case ClhHypervisor:
 		return &cloudHypervisor{
+			store: store,
+		}, nil
+	case LibhermitHypervisor:
+		return &libhermitHypervisor{
 			store: store,
 		}, nil
 	case MockHypervisor:

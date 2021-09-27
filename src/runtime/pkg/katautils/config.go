@@ -46,6 +46,7 @@ const (
 	clhHypervisorTableType         = "clh"
 	qemuHypervisorTableType        = "qemu"
 	acrnHypervisorTableType        = "acrn"
+	libhermitHypervisorTableType   = "libhermit"
 
 	// the maximum amount of PCI bridges that can be cold plugged in a VM
 	maxPCIBridges uint32 = 5
@@ -716,7 +717,6 @@ func newQemuHypervisorConfig(h hypervisor) (vc.HypervisorConfig, error) {
 		ConfidentialGuest:       h.ConfidentialGuest,
 		GuestSwap:               h.GuestSwap,
 		Rootless:                h.Rootless,
-		Unikernel:               h.Unikernel,
 	}, nil
 }
 
@@ -880,6 +880,12 @@ func newClhHypervisorConfig(h hypervisor) (vc.HypervisorConfig, error) {
 	}, nil
 }
 
+func newLibhermitHypervisorConfig(h hypervisor) (vc.HypervisorConfig, error) {
+	config := GetDefaultHypervisorConfig()
+	config.Unikernel = true
+	return config, nil
+}
+
 func newFactoryConfig(f factory) (oci.FactoryConfig, error) {
 	if f.TemplatePath == "" {
 		f.TemplatePath = defaultTemplatePath
@@ -913,6 +919,9 @@ func updateRuntimeConfigHypervisor(configPath string, tomlConf tomlConfig, confi
 		case clhHypervisorTableType:
 			config.HypervisorType = vc.ClhHypervisor
 			hConfig, err = newClhHypervisorConfig(hypervisor)
+		case libhermitHypervisorTableType:
+			config.HypervisorType = vc.LibhermitHypervisor
+			hConfig, err = newLibhermitHypervisorConfig(hypervisor)
 		}
 
 		if err != nil {

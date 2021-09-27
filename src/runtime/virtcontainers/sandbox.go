@@ -497,7 +497,7 @@ func newSandbox(ctx context.Context, sandboxConfig SandboxConfig, factory Factor
 
 	// create agent instance
 	if sandboxConfig.HypervisorConfig.Unikernel {
-		ctx = WithNewAgentFunc(ctx, NewMockAgent)
+		ctx = WithNewAgentFunc(ctx, NewUnikernelAgent)
 	}
 	agent := getNewAgentFunc(ctx)()
 
