@@ -134,6 +134,7 @@ func (n *unikernelAgent) statsContainer(ctx context.Context, sandbox *Sandbox, c
 
 // waitProcess is the Noop agent process waiter. It does nothing.
 func (n *unikernelAgent) waitProcess(ctx context.Context, c *Container, processID string) (int32, error) {
+	time.Sleep(time.Second * 999)
 	return 0, nil
 }
 

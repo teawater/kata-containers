@@ -895,6 +895,11 @@ func newLibhermitHypervisorConfig(h hypervisor) (vc.HypervisorConfig, error) {
 		return vc.HypervisorConfig{}, err
 	}
 
+	config.InitrdPath, config.ImagePath, err = h.getInitrdAndImage()
+	if err != nil {
+		return vc.HypervisorConfig{}, err
+	}
+
 	//config.Debug = true
 	config.Unikernel = true
 
@@ -1166,9 +1171,12 @@ func LoadConfiguration(configPath string, ignoreLogging bool) (resolvedConfigPat
 			}).Info("loaded configuration")
 	}
 
+	kataUtilsLogger.Info("libhermit2 LoadConfiguration")
 	if err := updateRuntimeConfig(resolved, tomlConf, &config); err != nil {
 		return "", config, err
 	}
+
+	kataUtilsLogger.Info("libhermit1 LoadConfiguration")
 
 	config.DisableGuestSeccomp = tomlConf.Runtime.DisableGuestSeccomp
 
@@ -1185,15 +1193,18 @@ func LoadConfiguration(configPath string, ignoreLogging bool) (resolvedConfigPat
 		}
 		config.Experimental = append(config.Experimental, *feature)
 	}
+	kataUtilsLogger.Info("libhermit3 LoadConfiguration")
 
 	if err = validateBindMounts(tomlConf.Runtime.SandboxBindMounts); err != nil {
 		return "", config, err
 	}
 	config.SandboxBindMounts = tomlConf.Runtime.SandboxBindMounts
+	kataUtilsLogger.Info("libhermit6 LoadConfiguration")
 
 	if err := checkConfig(config); err != nil {
 		return "", config, err
 	}
+	kataUtilsLogger.Info("libhermit7 LoadConfiguration")
 
 	return resolved, config, nil
 }
@@ -1258,14 +1269,17 @@ func checkConfig(config oci.RuntimeConfig) error {
 	if err := checkNetNsConfig(config); err != nil {
 		return err
 	}
+	kataUtilsLogger.Info("libhermit1 checkConfig")
 
 	if err := checkHypervisorConfig(config.HypervisorConfig); err != nil {
 		return err
 	}
+	kataUtilsLogger.Info("libhermit2 checkConfig")
 
 	if err := checkFactoryConfig(config); err != nil {
 		return err
 	}
+	kataUtilsLogger.Info("libhermit3 checkConfig")
 
 	return nil
 }

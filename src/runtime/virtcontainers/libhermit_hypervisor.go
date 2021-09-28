@@ -13,6 +13,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"runtime/debug"
 
 	persistapi "github.com/kata-containers/kata-containers/src/runtime/virtcontainers/persist/api"
 	"github.com/kata-containers/kata-containers/src/runtime/virtcontainers/types"
@@ -82,6 +83,7 @@ func (h *libhermitHypervisor) startSandbox(ctx context.Context, timeout int) err
 }
 
 func (h *libhermitHypervisor) stopSandbox(ctx context.Context, waitOnly bool) error {
+	h.Logger().Info("%s", string(debug.Stack()))
 	h.cmd.Process.Kill()
 	h.cmd.Wait()
 	//h.Logger().Infof("out:\n%s\nerr:\n%s\n", string(h.stdout.Bytes()), string(h.stderr.Bytes()))
