@@ -10,8 +10,6 @@ package containerdshim
 import (
 	"context"
 	"fmt"
-	"github.com/kata-containers/kata-containers/src/runtime/pkg/utils"
-	"github.com/kata-containers/kata-containers/src/runtime/virtcontainers/pkg/rootless"
 	"math/rand"
 	"os"
 	"os/user"
@@ -19,6 +17,9 @@ import (
 	"path/filepath"
 	"strconv"
 	"syscall"
+
+	"github.com/kata-containers/kata-containers/src/runtime/pkg/utils"
+	"github.com/kata-containers/kata-containers/src/runtime/virtcontainers/pkg/rootless"
 
 	containerd_types "github.com/containerd/containerd/api/types"
 	"github.com/containerd/containerd/mount"
@@ -123,8 +124,10 @@ func create(ctx context.Context, s *service, r *taskAPI.CreateTaskRequest) (*con
 		//
 		sandbox, _, err := katautils.CreateSandbox(s.ctx, vci, *ociSpec, *s.config, rootFs, r.ID, bundlePath, "", disableOutput, false)
 		if err != nil {
+			shimLog.WithField("libhermit", 1).Infof("libhermit4 %s", err)
 			return nil, err
 		}
+		shimLog.WithField("libhermit", 1).Info("libhermit3")
 		s.sandbox = sandbox
 		pid, err := s.sandbox.GetHypervisorPid()
 		if err != nil {
@@ -160,10 +163,12 @@ func create(ctx context.Context, s *service, r *taskAPI.CreateTaskRequest) (*con
 		}
 	}
 
+	shimLog.WithField("libhermit", 1).Info("libhermit2")
 	container, err := newContainer(s, r, containerType, ociSpec, rootFs.Mounted)
 	if err != nil {
 		return nil, err
 	}
+	shimLog.WithField("libhermit", 1).Info("libhermit1")
 
 	return container, nil
 }

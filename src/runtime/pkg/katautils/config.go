@@ -882,7 +882,22 @@ func newClhHypervisorConfig(h hypervisor) (vc.HypervisorConfig, error) {
 
 func newLibhermitHypervisorConfig(h hypervisor) (vc.HypervisorConfig, error) {
 	config := GetDefaultHypervisorConfig()
+
+	var err error
+
+	config.HypervisorPath, err = h.path()
+	if err != nil {
+		return vc.HypervisorConfig{}, err
+	}
+
+	config.KernelPath, err = h.kernel()
+	if err != nil {
+		return vc.HypervisorConfig{}, err
+	}
+
+	//config.Debug = true
 	config.Unikernel = true
+
 	return config, nil
 }
 

@@ -7,40 +7,71 @@
 package virtcontainers
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"os"
+	"os/exec"
 
 	persistapi "github.com/kata-containers/kata-containers/src/runtime/virtcontainers/persist/api"
 	"github.com/kata-containers/kata-containers/src/runtime/virtcontainers/types"
+	"github.com/sirupsen/logrus"
 )
 
 //var MockHybridVSockPath = "/tmp/kata-mock-hybrid-vsock.socket"
 
 type libhermitHypervisor struct {
-	store        persistapi.PersistDriver
-	libhermitPid int
+	store          persistapi.PersistDriver
+	cmd            *exec.Cmd
+	hermit_path    string
+	agent_path     string
+	stdout, stderr bytes.Buffer
 }
 
-func (m *libhermitHypervisor) capabilities(ctx context.Context) types.Capabilities {
+func (h *libhermitHypervisor) Logger() *logrus.Entry {
+	return virtLog.WithField("subsystem", "libhermit")
+}
+
+func (h *libhermitHypervisor) capabilities(ctx context.Context) types.Capabilities {
 	caps := types.Capabilities{}
 	caps.SetFsSharingSupport()
 	return caps
 }
 
-func (m *libhermitHypervisor) hypervisorConfig() HypervisorConfig {
+func (h *libhermitHypervisor) hypervisorConfig() HypervisorConfig {
 	return HypervisorConfig{}
 }
 
-func (m *libhermitHypervisor) createSandbox(ctx context.Context, id string, networkNS NetworkNamespace, hypervisorConfig *HypervisorConfig) error {
+func (h *libhermitHypervisor) createSandbox(ctx context.Context, id string, networkNS NetworkNamespace, hypervisorConfig *HypervisorConfig) error {
+	h.hermit_path = hypervisorConfig.HypervisorPath
+	h.agent_path = hypervisorConfig.KernelPath
 	return nil
 }
 
-func (m *libhermitHypervisor) startSandbox(ctx context.Context, timeout int) error {
+func (h *libhermitHypervisor) startSandbox(ctx context.Context, timeout int) error {
+	cmdEnv := []string{}
+	cmdEnv = append(cmdEnv, "HERMIT_ISLE=qemu")
+	cmd := exec.CommandContext(ctx, h.hermit_path, h.agent_path)
+	cmd.Env = cmdEnv
+	cmd.Stdout = &h.stdout
+	cmd.Stderr = &h.stderr
+	err := cmd.Start()
+	if err != nil {
+		err = fmt.Errorf("startSandbox cmd.Start() %s %s failed with %s\n", h.hermit_path, h.agent_path, err)
+		h.Logger().Error(err)
+		return err
+	}
+
+	h.Logger().Infof("startSandbox pid %d", cmd.Process.Pid)
+	h.cmd = cmd
+
 	return nil
 }
 
-func (m *libhermitHypervisor) stopSandbox(ctx context.Context, waitOnly bool) error {
+func (h *libhermitHypervisor) stopSandbox(ctx context.Context, waitOnly bool) error {
+	h.cmd.Wait()
+	h.Logger().Infof("out:\n%s\nerr:\n%s\n", string(h.stdout.Bytes()), string(h.stderr.Bytes()))
 	return nil
 }
 
@@ -104,8 +135,8 @@ func (m *libhermitHypervisor) cleanup(ctx context.Context) error {
 	return nil
 }
 
-func (m *libhermitHypervisor) getPids() []int {
-	return []int{m.libhermitPid}
+func (h *libhermitHypervisor) getPids() []int {
+	return []int{h.cmd.Process.Pid}
 }
 
 func (m *libhermitHypervisor) getVirtioFsPid() *int {
