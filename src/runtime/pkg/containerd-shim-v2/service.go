@@ -370,8 +370,8 @@ func (s *service) Cleanup(ctx context.Context) (_ *taskAPI.DeleteResponse, err e
 
 // Create a new sandbox or container with the underlying OCI runtime
 func (s *service) Create(ctx context.Context, r *taskAPI.CreateTaskRequest) (_ *taskAPI.CreateTaskResponse, err error) {
-	shimLog.WithField("container", r.ID).Info("Create() start")
-	defer shimLog.WithField("container", r.ID).Info("Create() end")
+	shimLog.WithField("container", r.ID).Debug("Create() start")
+	defer shimLog.WithField("container", r.ID).Debug("Create() end")
 	start := time.Now()
 	defer func() {
 		err = toGRPC(err)
@@ -429,8 +429,8 @@ func (s *service) Create(ctx context.Context, r *taskAPI.CreateTaskRequest) (_ *
 
 // Start a process
 func (s *service) Start(ctx context.Context, r *taskAPI.StartRequest) (_ *taskAPI.StartResponse, err error) {
-	shimLog.WithField("container", r.ID).Info("Start() start")
-	defer shimLog.WithField("container", r.ID).Info("Start() end")
+	shimLog.WithField("container", r.ID).Debug("Start() start")
+	defer shimLog.WithField("container", r.ID).Debug("Start() end")
 	span, spanCtx := katatrace.Trace(s.rootCtx, shimLog, "Start", shimTracingTags)
 	defer span.End()
 

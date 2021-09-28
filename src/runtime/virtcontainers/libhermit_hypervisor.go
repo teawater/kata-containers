@@ -7,10 +7,10 @@
 package virtcontainers
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 
@@ -26,7 +26,7 @@ type libhermitHypervisor struct {
 	cmd            *exec.Cmd
 	hermit_path    string
 	agent_path     string
-	stdout, stderr bytes.Buffer
+	stdout, stderr io.ReadCloser
 }
 
 func (h *libhermitHypervisor) Logger() *logrus.Entry {
@@ -54,9 +54,21 @@ func (h *libhermitHypervisor) startSandbox(ctx context.Context, timeout int) err
 	cmdEnv = append(cmdEnv, "HERMIT_ISLE=qemu")
 	cmd := exec.CommandContext(ctx, h.hermit_path, h.agent_path)
 	cmd.Env = cmdEnv
-	cmd.Stdout = &h.stdout
-	cmd.Stderr = &h.stderr
-	err := cmd.Start()
+
+	var err error
+	h.stdout, err = cmd.StdoutPipe()
+	if err != nil {
+		err = fmt.Errorf("startSandbox cmd.StderrPipe() %s %s failed with %s\n", h.hermit_path, h.agent_path, err)
+		h.Logger().Error(err)
+		return err
+	}
+	h.stderr, err = cmd.StderrPipe()
+	if err != nil {
+		err = fmt.Errorf("startSandbox cmd.StderrPipe() %s %s failed with %s\n", h.hermit_path, h.agent_path, err)
+		h.Logger().Error(err)
+		return err
+	}
+	err = cmd.Start()
 	if err != nil {
 		err = fmt.Errorf("startSandbox cmd.Start() %s %s failed with %s\n", h.hermit_path, h.agent_path, err)
 		h.Logger().Error(err)
@@ -70,8 +82,9 @@ func (h *libhermitHypervisor) startSandbox(ctx context.Context, timeout int) err
 }
 
 func (h *libhermitHypervisor) stopSandbox(ctx context.Context, waitOnly bool) error {
+	h.cmd.Process.Kill()
 	h.cmd.Wait()
-	h.Logger().Infof("out:\n%s\nerr:\n%s\n", string(h.stdout.Bytes()), string(h.stderr.Bytes()))
+	//h.Logger().Infof("out:\n%s\nerr:\n%s\n", string(h.stdout.Bytes()), string(h.stderr.Bytes()))
 	return nil
 }
 
