@@ -7,13 +7,13 @@
 package virtcontainers
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
-	"runtime/debug"
 
 	persistapi "github.com/kata-containers/kata-containers/src/runtime/virtcontainers/persist/api"
 	"github.com/kata-containers/kata-containers/src/runtime/virtcontainers/types"
@@ -21,6 +21,7 @@ import (
 )
 
 //var MockHybridVSockPath = "/tmp/kata-mock-hybrid-vsock.socket"
+const helloKataString = "Hello Kata libHermit WAMR!\n"
 
 type libhermitHypervisor struct {
 	store          persistapi.PersistDriver
@@ -79,11 +80,24 @@ func (h *libhermitHypervisor) startSandbox(ctx context.Context, timeout int) err
 	h.Logger().Infof("startSandbox pid %d", cmd.Process.Pid)
 	h.cmd = cmd
 
+	reader := bufio.NewReader(h.stdout)
+	line, err := reader.ReadString('\n')
+	if err != nil {
+		err = fmt.Errorf("startSandbox reader.ReadString stdout %s %s failed with %s\n", h.hermit_path, h.agent_path, err)
+		h.Logger().Error(err)
+		return err
+	}
+	if line != helloKataString {
+		err = fmt.Errorf("startSandbox hello string is %s that it is not right", line)
+		h.Logger().Error(err)
+		return err
+	}
+
 	return nil
 }
 
 func (h *libhermitHypervisor) stopSandbox(ctx context.Context, waitOnly bool) error {
-	h.Logger().Info("%s", string(debug.Stack()))
+	//h.Logger().Info("%s", string(debug.Stack()))
 	h.cmd.Process.Kill()
 	h.cmd.Wait()
 	//h.Logger().Infof("out:\n%s\nerr:\n%s\n", string(h.stdout.Bytes()), string(h.stderr.Bytes()))

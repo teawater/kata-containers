@@ -7,6 +7,7 @@
 package virtcontainers
 
 import (
+	"runtime/debug"
 	"syscall"
 	"time"
 
@@ -16,11 +17,16 @@ import (
 	vcTypes "github.com/kata-containers/kata-containers/src/runtime/virtcontainers/pkg/types"
 	"github.com/kata-containers/kata-containers/src/runtime/virtcontainers/types"
 	specs "github.com/opencontainers/runtime-spec/specs-go"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 )
 
 // unikernelAgent is an Agent implementation for unikernel
 type unikernelAgent struct {
+}
+
+func (u *unikernelAgent) Logger() *logrus.Entry {
+	return virtLog.WithField("subsystem", "unikernel_agent").WithField("subsystem", "libhermit")
 }
 
 // nolint:golint
@@ -133,8 +139,9 @@ func (n *unikernelAgent) statsContainer(ctx context.Context, sandbox *Sandbox, c
 }
 
 // waitProcess is the Noop agent process waiter. It does nothing.
-func (n *unikernelAgent) waitProcess(ctx context.Context, c *Container, processID string) (int32, error) {
-	time.Sleep(time.Second * 999)
+func (u *unikernelAgent) waitProcess(ctx context.Context, c *Container, processID string) (int32, error) {
+	u.Logger().Info("waitProcess %s", string(debug.Stack()))
+
 	return 0, nil
 }
 
