@@ -8,6 +8,7 @@ package containerdshim
 import (
 	"context"
 	"fmt"
+	"runtime/debug"
 
 	"github.com/containerd/containerd/api/types/task"
 	"github.com/kata-containers/kata-containers/src/runtime/pkg/katautils"
@@ -20,6 +21,7 @@ func startContainer(ctx context.Context, s *service, c *container) (retErr error
 			c.exitCh <- exitCode255
 		}
 	}()
+	shimLog.Infof("startContainer sid %s cid %s %s %s", s.id, c.id, c.cType.IsSandbox(), string(debug.Stack()))
 	// start a container
 	if c.cType == "" {
 		err := fmt.Errorf("Bug, the container %s type is empty", c.id)

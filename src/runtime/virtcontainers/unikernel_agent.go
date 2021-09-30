@@ -7,6 +7,9 @@
 package virtcontainers
 
 import (
+	"fmt"
+	"io"
+	"net"
 	"runtime/debug"
 	"syscall"
 	"time"
@@ -21,8 +24,15 @@ import (
 	"golang.org/x/net/context"
 )
 
+const unikernelUrl = "localhost:18082"
+
 // unikernelAgent is an Agent implementation for unikernel
 type unikernelAgent struct {
+	containers map[string]unikernelContainer
+}
+
+type unikernelContainer struct {
+	conn net.Conn
 }
 
 func (u *unikernelAgent) Logger() *logrus.Entry {
@@ -31,7 +41,7 @@ func (u *unikernelAgent) Logger() *logrus.Entry {
 
 // nolint:golint
 func NewUnikernelAgent() agent {
-	return &unikernelAgent{}
+	return &unikernelAgent{containers: make(map[string]unikernelContainer)}
 }
 
 // init initializes the Noop agent, i.e. it does nothing.
@@ -64,12 +74,21 @@ func (n *unikernelAgent) exec(ctx context.Context, sandbox *Sandbox, c Container
 }
 
 // startSandbox is the Noop agent Sandbox starting implementation. It does nothing.
-func (n *unikernelAgent) startSandbox(ctx context.Context, sandbox *Sandbox) error {
+func (u *unikernelAgent) startSandbox(ctx context.Context, sandbox *Sandbox) error {
+	conn, err := (&net.Dialer{}).DialContext(ctx, "tcp", unikernelUrl)
+	if err != nil {
+		err = fmt.Errorf("startSandbox %s failed with %s\n", unikernelUrl, err)
+		u.Logger().Error(err)
+		return err
+	}
+	u.containers[sandbox.id] = unikernelContainer{conn: conn}
+
 	return nil
 }
 
 // stopSandbox is the Noop agent Sandbox stopping implementation. It does nothing.
-func (n *unikernelAgent) stopSandbox(ctx context.Context, sandbox *Sandbox) error {
+func (u *unikernelAgent) stopSandbox(ctx context.Context, sandbox *Sandbox) error {
+	u.containers[sandbox.id].conn.Close()
 	return nil
 }
 
@@ -134,13 +153,27 @@ func (n *unikernelAgent) check(ctx context.Context) error {
 }
 
 // statsContainer is the Noop agent Container stats implementation. It does nothing.
-func (n *unikernelAgent) statsContainer(ctx context.Context, sandbox *Sandbox, c Container) (*ContainerStats, error) {
+func (u *unikernelAgent) statsContainer(ctx context.Context, sandbox *Sandbox, c Container) (*ContainerStats, error) {
+	u.Logger().Infof("statsContainer cid %s %s %s", c.id, string(debug.Stack()))
 	return &ContainerStats{}, nil
 }
 
 // waitProcess is the Noop agent process waiter. It does nothing.
 func (u *unikernelAgent) waitProcess(ctx context.Context, c *Container, processID string) (int32, error) {
-	u.Logger().Info("waitProcess %s", string(debug.Stack()))
+	//u.Logger().Infof("waitProcess cid %s pid %s %s", c.id, processID, string(debug.Stack()))
+	var buf [512]byte
+	for {
+		n, err := u.containers[c.id].conn.Read(buf[0:])
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			err = fmt.Errorf("waitProcess %s failed with %s\n", unikernelUrl, err)
+			u.Logger().Error(err)
+			return 0, err
+		}
+		u.Logger().Infof("waitProcess %s", string(buf[:n]))
+	}
 
 	return 0, nil
 }
