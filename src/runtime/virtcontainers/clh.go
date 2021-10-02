@@ -6,6 +6,7 @@
 package virtcontainers
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -422,6 +423,10 @@ func (clh *cloudHypervisor) getSandboxConsole(ctx context.Context, id string) (s
 	clh.console = master
 
 	return consoleProtoPty, slave, nil
+}
+
+func (clh *cloudHypervisor) getSandboxConsoleScanner() (*bufio.Scanner, error) {
+	return nil, errors.New("CLH doesn't support getSandboxConsoleScanner")
 }
 
 func (clh *cloudHypervisor) disconnect(ctx context.Context) {

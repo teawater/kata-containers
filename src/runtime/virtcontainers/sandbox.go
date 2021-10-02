@@ -967,6 +967,9 @@ const (
 
 	// pty type of console.
 	consoleProtoPty = "pty"
+
+	// sccanner of console
+	consoleProtoScanner = "scanner"
 )
 
 // console watcher is designed to monitor guest console output.
@@ -1010,11 +1013,29 @@ func (cw *consoleWatcher) start(s *Sandbox) (err error) {
 		// read-only
 		cw.ptyConsole, _ = os.Open(cw.consoleURL)
 		scanner = bufio.NewScanner(cw.ptyConsole)
+	case consoleProtoScanner:
+		// read-only
+		scanner, err = s.hypervisor.getSandboxConsoleScanner()
+		if err != nil {
+			return err
+		}
 	default:
 		return fmt.Errorf("unknown console proto %s", cw.proto)
 	}
 
+	s.Logger().WithFields(logrus.Fields{
+		"console-protocol": cw.proto,
+		"console-url":      cw.consoleURL,
+		"sandbox":          s.id,
+	}).Debug("reading guest console begin1")
+
 	go func() {
+		s.Logger().WithFields(logrus.Fields{
+			"console-protocol": cw.proto,
+			"console-url":      cw.consoleURL,
+			"sandbox":          s.id,
+		}).Debug("reading guest console begin")
+
 		for scanner.Scan() {
 			s.Logger().WithFields(logrus.Fields{
 				"console-protocol": cw.proto,
@@ -1189,22 +1210,27 @@ func (s *Sandbox) startVM(ctx context.Context) (err error) {
 		}
 	}()
 
-	if err := s.network.Run(ctx, s.networkNS.NetNsPath, func() error {
-		if s.factory != nil {
-			vm, err := s.factory.GetVM(ctx, VMConfig{
-				HypervisorType:   s.config.HypervisorType,
-				HypervisorConfig: s.config.HypervisorConfig,
-				AgentConfig:      s.config.AgentConfig,
-			})
-			if err != nil {
-				return err
+	/*
+		if err := s.network.Run(ctx, s.networkNS.NetNsPath, func() error {
+			if s.factory != nil {
+				vm, err := s.factory.GetVM(ctx, VMConfig{
+					HypervisorType:   s.config.HypervisorType,
+					HypervisorConfig: s.config.HypervisorConfig,
+					AgentConfig:      s.config.AgentConfig,
+				})
+				if err != nil {
+					return err
+				}
+
+				return vm.assignSandbox(s)
 			}
 
-			return vm.assignSandbox(s)
-		}
-
-		return s.hypervisor.startSandbox(ctx, vmStartTimeout)
-	}); err != nil {
+			return s.hypervisor.startSandbox(ctx, vmStartTimeout)
+		}); err != nil {
+			return err
+		}*/
+	err = s.hypervisor.startSandbox(ctx, vmStartTimeout)
+	if err != nil {
 		return err
 	}
 

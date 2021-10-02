@@ -6,6 +6,7 @@
 package virtcontainers
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"os"
@@ -86,6 +87,10 @@ func (m *mockHypervisor) hotplugRemoveDevice(ctx context.Context, devInfo interf
 
 func (m *mockHypervisor) getSandboxConsole(ctx context.Context, sandboxID string) (string, string, error) {
 	return "", "", nil
+}
+
+func (m *mockHypervisor) getSandboxConsoleScanner() (*bufio.Scanner, error) {
+	return nil, errors.New("mockHypervisor doesn't support getSandboxConsoleScanner")
 }
 
 func (m *mockHypervisor) resizeMemory(ctx context.Context, memMB uint32, memorySectionSizeMB uint32, probe bool) (uint32, memoryDevice, error) {

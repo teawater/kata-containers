@@ -24,7 +24,7 @@ import (
 	"golang.org/x/net/context"
 )
 
-const unikernelUrl = "localhost:18082"
+const unikernelUrl = "127.0.0.1:18082"
 
 // unikernelAgent is an Agent implementation for unikernel
 type unikernelAgent struct {

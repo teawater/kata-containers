@@ -1116,6 +1116,10 @@ func (fc *firecracker) getSandboxConsole(ctx context.Context, id string) (string
 	return consoleProtoPty, slave, nil
 }
 
+func (fc *firecracker) getSandboxConsoleScanner() (*bufio.Scanner, error) {
+	return nil, errors.New("firecracker doesn't support getSandboxConsoleScanner")
+}
+
 func (fc *firecracker) disconnect(ctx context.Context) {
 	fc.state.set(notReady)
 }

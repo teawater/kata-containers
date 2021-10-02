@@ -14,6 +14,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"runtime/debug"
 
 	persistapi "github.com/kata-containers/kata-containers/src/runtime/virtcontainers/persist/api"
 	"github.com/kata-containers/kata-containers/src/runtime/virtcontainers/types"
@@ -21,14 +22,14 @@ import (
 )
 
 //var MockHybridVSockPath = "/tmp/kata-mock-hybrid-vsock.socket"
-const helloKataString = "Hello Kata libHermit WAMR!\n"
+const helloKataString = "Hello Kata libHermit WAMR!"
 
 type libhermitHypervisor struct {
-	store          persistapi.PersistDriver
-	cmd            *exec.Cmd
-	hermit_path    string
-	agent_path     string
-	stdout, stderr io.ReadCloser
+	store       persistapi.PersistDriver
+	cmd         *exec.Cmd
+	hermit_path string
+	agent_path  string
+	stdout      *bufio.Scanner
 }
 
 func (h *libhermitHypervisor) Logger() *logrus.Entry {
@@ -58,18 +59,19 @@ func (h *libhermitHypervisor) startSandbox(ctx context.Context, timeout int) err
 	cmd.Env = cmdEnv
 
 	var err error
-	h.stdout, err = cmd.StdoutPipe()
+	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		err = fmt.Errorf("startSandbox cmd.StderrPipe() %s %s failed with %s\n", h.hermit_path, h.agent_path, err)
 		h.Logger().Error(err)
 		return err
 	}
-	h.stderr, err = cmd.StderrPipe()
+	h.stdout = bufio.NewScanner(stdout)
+	/*h.stderr, err = cmd.StderrPipe()
 	if err != nil {
 		err = fmt.Errorf("startSandbox cmd.StderrPipe() %s %s failed with %s\n", h.hermit_path, h.agent_path, err)
 		h.Logger().Error(err)
 		return err
-	}
+	}*/
 	err = cmd.Start()
 	if err != nil {
 		err = fmt.Errorf("startSandbox cmd.Start() %s %s failed with %s\n", h.hermit_path, h.agent_path, err)
@@ -80,27 +82,47 @@ func (h *libhermitHypervisor) startSandbox(ctx context.Context, timeout int) err
 	h.Logger().Infof("startSandbox pid %d", cmd.Process.Pid)
 	h.cmd = cmd
 
-	reader := bufio.NewReader(h.stdout)
-	line, err := reader.ReadString('\n')
-	if err != nil {
-		err = fmt.Errorf("startSandbox reader.ReadString stdout %s %s failed with %s\n", h.hermit_path, h.agent_path, err)
+	/*reader := bufio.NewReader(h.stdout)*/
+	if !h.stdout.Scan() {
+		err = fmt.Errorf("startSandbox read stdout %s %s failed with %s\n", h.hermit_path, h.agent_path, h.stdout.Err())
 		h.Logger().Error(err)
 		return err
 	}
+	line := h.stdout.Text()
 	if line != helloKataString {
 		err = fmt.Errorf("startSandbox hello string is %s that it is not right", line)
 		h.Logger().Error(err)
 		return err
 	}
 
+	go func() {
+		h.Logger().WithFields(logrus.Fields{}).Info("reading guest console begin")
+
+		for h.stdout.Scan() {
+			h.Logger().WithFields(logrus.Fields{
+				"vmconsole": h.stdout.Text(),
+			}).Info("reading guest console")
+		}
+
+		if err := h.stdout.Err(); err != nil {
+			if err == io.EOF {
+				h.Logger().Info("console watcher quits")
+			} else {
+				h.Logger().WithError(err).Error("Failed to read guest console logs")
+			}
+		}
+	}()
+
+	//time.Sleep(time.Second * 60)
+
 	return nil
 }
 
 func (h *libhermitHypervisor) stopSandbox(ctx context.Context, waitOnly bool) error {
-	//h.Logger().Info("%s", string(debug.Stack()))
+	h.Logger().Info("stopSandbox %s", string(debug.Stack()))
 	h.cmd.Process.Kill()
 	h.cmd.Wait()
-	//h.Logger().Infof("out:\n%s\nerr:\n%s\n", string(h.stdout.Bytes()), string(h.stderr.Bytes()))
+
 	return nil
 }
 
@@ -141,8 +163,12 @@ func (m *libhermitHypervisor) hotplugRemoveDevice(ctx context.Context, devInfo i
 	return nil, nil
 }
 
-func (m *libhermitHypervisor) getSandboxConsole(ctx context.Context, sandboxID string) (string, string, error) {
-	return "", "", nil
+func (h *libhermitHypervisor) getSandboxConsole(ctx context.Context, sandboxID string) (string, string, error) {
+	return consoleProtoScanner, "", nil
+}
+
+func (h *libhermitHypervisor) getSandboxConsoleScanner() (*bufio.Scanner, error) {
+	return h.stdout, nil
 }
 
 func (m *libhermitHypervisor) resizeMemory(ctx context.Context, memMB uint32, memorySectionSizeMB uint32, probe bool) (uint32, memoryDevice, error) {

@@ -11,7 +11,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/kata-containers/kata-containers/src/runtime/virtcontainers/pkg/rootless"
 	"io/ioutil"
 	"math"
 	"os"
@@ -23,6 +22,8 @@ import (
 	"syscall"
 	"time"
 	"unsafe"
+
+	"github.com/kata-containers/kata-containers/src/runtime/virtcontainers/pkg/rootless"
 
 	govmmQemu "github.com/kata-containers/govmm/qemu"
 	"github.com/opencontainers/selinux/go-selinux/label"
@@ -1954,6 +1955,10 @@ func (q *qemu) getSandboxConsole(ctx context.Context, id string) (string, string
 	}
 
 	return consoleProtoUnix, consoleURL, nil
+}
+
+func (q *qemu) getSandboxConsoleScanner() (*bufio.Scanner, error) {
+	return nil, errors.New("qemu doesn't support getSandboxConsoleScanner")
 }
 
 func (q *qemu) saveSandbox() error {

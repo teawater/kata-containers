@@ -887,6 +887,7 @@ type hypervisor interface {
 	resizeMemory(ctx context.Context, memMB uint32, memoryBlockSizeMB uint32, probe bool) (uint32, memoryDevice, error)
 	resizeVCPUs(ctx context.Context, vcpus uint32) (uint32, uint32, error)
 	getSandboxConsole(ctx context.Context, sandboxID string) (string, string, error)
+	getSandboxConsoleScanner() (*bufio.Scanner, error)
 	disconnect(ctx context.Context)
 	capabilities(ctx context.Context) types.Capabilities
 	hypervisorConfig() HypervisorConfig

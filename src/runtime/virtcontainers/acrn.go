@@ -6,6 +6,7 @@
 package virtcontainers
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -629,6 +630,10 @@ func (a *Acrn) getSandboxConsole(ctx context.Context, id string) (string, string
 	}
 
 	return consoleProtoUnix, consoleURL, nil
+}
+
+func (a *Acrn) getSandboxConsoleScanner() (*bufio.Scanner, error) {
+	return nil, errors.New("acrn doesn't support getSandboxConsoleScanner")
 }
 
 func (a *Acrn) saveSandbox() error {
