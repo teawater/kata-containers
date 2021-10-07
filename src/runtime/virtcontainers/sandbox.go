@@ -506,6 +506,13 @@ func newSandbox(ctx context.Context, sandboxConfig SandboxConfig, factory Factor
 		return nil, err
 	}
 
+	var networkNS NetworkNamespace
+	if sandboxConfig.HypervisorConfig.Unikernel {
+		networkNS = NetworkNamespace{}
+	} else {
+		networkNS = NetworkNamespace{NetNsPath: sandboxConfig.NetworkConfig.NetNSPath}
+	}
+
 	s := &Sandbox{
 		id:              sandboxConfig.ID,
 		factory:         factory,
@@ -519,7 +526,7 @@ func newSandbox(ctx context.Context, sandboxConfig SandboxConfig, factory Factor
 		wg:              &sync.WaitGroup{},
 		shmSize:         sandboxConfig.ShmSize,
 		sharePidNs:      sandboxConfig.SharePidNs,
-		networkNS:       NetworkNamespace{NetNsPath: sandboxConfig.NetworkConfig.NetNSPath},
+		networkNS:       networkNS,
 		ctx:             ctx,
 		swapDeviceNum:   0,
 		swapSizeBytes:   0,
@@ -1210,29 +1217,28 @@ func (s *Sandbox) startVM(ctx context.Context) (err error) {
 		}
 	}()
 
-	/*
-		if err := s.network.Run(ctx, s.networkNS.NetNsPath, func() error {
-			if s.factory != nil {
-				vm, err := s.factory.GetVM(ctx, VMConfig{
-					HypervisorType:   s.config.HypervisorType,
-					HypervisorConfig: s.config.HypervisorConfig,
-					AgentConfig:      s.config.AgentConfig,
-				})
-				if err != nil {
-					return err
-				}
-
-				return vm.assignSandbox(s)
+	if err := s.network.Run(ctx, s.networkNS.NetNsPath, func() error {
+		if s.factory != nil {
+			vm, err := s.factory.GetVM(ctx, VMConfig{
+				HypervisorType:   s.config.HypervisorType,
+				HypervisorConfig: s.config.HypervisorConfig,
+				AgentConfig:      s.config.AgentConfig,
+			})
+			if err != nil {
+				return err
 			}
 
-			return s.hypervisor.startSandbox(ctx, vmStartTimeout)
-		}); err != nil {
-			return err
-		}*/
-	err = s.hypervisor.startSandbox(ctx, vmStartTimeout)
-	if err != nil {
+			return vm.assignSandbox(s)
+		}
+
+		return s.hypervisor.startSandbox(ctx, vmStartTimeout)
+	}); err != nil {
 		return err
 	}
+	/*err = s.hypervisor.startSandbox(ctx, vmStartTimeout)
+	if err != nil {
+		return err
+	}*/
 
 	// In case of vm factory, network interfaces are hotplugged
 	// after vm is started.

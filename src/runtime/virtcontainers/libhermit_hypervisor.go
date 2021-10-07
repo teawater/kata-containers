@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime/debug"
+	"syscall"
 
 	persistapi "github.com/kata-containers/kata-containers/src/runtime/virtcontainers/persist/api"
 	"github.com/kata-containers/kata-containers/src/runtime/virtcontainers/types"
@@ -120,7 +121,7 @@ func (h *libhermitHypervisor) startSandbox(ctx context.Context, timeout int) err
 
 func (h *libhermitHypervisor) stopSandbox(ctx context.Context, waitOnly bool) error {
 	h.Logger().Info("stopSandbox %s", string(debug.Stack()))
-	h.cmd.Process.Kill()
+	h.cmd.Process.Signal(syscall.SIGKILL)
 	h.cmd.Wait()
 
 	return nil
