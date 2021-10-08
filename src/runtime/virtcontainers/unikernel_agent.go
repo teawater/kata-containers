@@ -14,6 +14,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/containernetworking/plugins/pkg/ns"
 	persistapi "github.com/kata-containers/kata-containers/src/runtime/virtcontainers/persist/api"
 	pbTypes "github.com/kata-containers/kata-containers/src/runtime/virtcontainers/pkg/agent/protocols"
 	"github.com/kata-containers/kata-containers/src/runtime/virtcontainers/pkg/agent/protocols/grpc"
@@ -75,6 +76,13 @@ func (n *unikernelAgent) exec(ctx context.Context, sandbox *Sandbox, c Container
 
 // startSandbox is the Noop agent Sandbox starting implementation. It does nothing.
 func (u *unikernelAgent) startSandbox(ctx context.Context, sandbox *Sandbox) error {
+	targetNS, err := ns.GetNS(sandbox.networkNS.NetNsPath)
+	if err != nil {
+		return err
+	}
+	if err := targetNS.Set(); err != nil {
+		return err
+	}
 	conn, err := (&net.Dialer{}).DialContext(ctx, "tcp", unikernelUrl)
 	if err != nil {
 		err = fmt.Errorf("startSandbox %s failed with %s\n", unikernelUrl, err)
@@ -108,7 +116,8 @@ func (n *unikernelAgent) stopContainer(ctx context.Context, sandbox *Sandbox, c 
 }
 
 // signalProcess is the Noop agent Container signaling implementation. It does nothing.
-func (n *unikernelAgent) signalProcess(ctx context.Context, c *Container, processID string, signal syscall.Signal, all bool) error {
+func (u *unikernelAgent) signalProcess(ctx context.Context, c *Container, processID string, signal syscall.Signal, all bool) error {
+	u.containers[c.id].conn.Close()
 	return nil
 }
 

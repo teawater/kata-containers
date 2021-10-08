@@ -120,7 +120,9 @@ func (h *libhermitHypervisor) startSandbox(ctx context.Context, timeout int) err
 
 func (h *libhermitHypervisor) stopSandbox(ctx context.Context, waitOnly bool) error {
 	h.Logger().Info("stopSandbox %s", string(debug.Stack()))
-	h.cmd.Process.Kill()
+	if !waitOnly {
+		h.cmd.Process.Kill()
+	}
 	h.cmd.Wait()
 
 	return nil

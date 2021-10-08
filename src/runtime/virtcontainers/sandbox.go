@@ -1210,29 +1210,28 @@ func (s *Sandbox) startVM(ctx context.Context) (err error) {
 		}
 	}()
 
-	/*
-		if err := s.network.Run(ctx, s.networkNS.NetNsPath, func() error {
-			if s.factory != nil {
-				vm, err := s.factory.GetVM(ctx, VMConfig{
-					HypervisorType:   s.config.HypervisorType,
-					HypervisorConfig: s.config.HypervisorConfig,
-					AgentConfig:      s.config.AgentConfig,
-				})
-				if err != nil {
-					return err
-				}
-
-				return vm.assignSandbox(s)
+	if err := s.network.Run(ctx, s.networkNS.NetNsPath, func() error {
+		if s.factory != nil {
+			vm, err := s.factory.GetVM(ctx, VMConfig{
+				HypervisorType:   s.config.HypervisorType,
+				HypervisorConfig: s.config.HypervisorConfig,
+				AgentConfig:      s.config.AgentConfig,
+			})
+			if err != nil {
+				return err
 			}
 
-			return s.hypervisor.startSandbox(ctx, vmStartTimeout)
-		}); err != nil {
-			return err
-		}*/
-	err = s.hypervisor.startSandbox(ctx, vmStartTimeout)
-	if err != nil {
+			return vm.assignSandbox(s)
+		}
+
+		return s.hypervisor.startSandbox(ctx, vmStartTimeout)
+	}); err != nil {
 		return err
 	}
+	/*err = s.hypervisor.startSandbox(ctx, vmStartTimeout)
+	if err != nil {
+		return err
+	}*/
 
 	// In case of vm factory, network interfaces are hotplugged
 	// after vm is started.
