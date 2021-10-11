@@ -22,7 +22,7 @@ import (
 )
 
 //var MockHybridVSockPath = "/tmp/kata-mock-hybrid-vsock.socket"
-const helloKataString = "Hello Kata libHermit WAMR!"
+const helloKataString = "To Infinity and Beyond!"
 
 type libhermitHypervisor struct {
 	store       persistapi.PersistDriver

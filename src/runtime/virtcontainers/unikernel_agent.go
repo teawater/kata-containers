@@ -74,8 +74,7 @@ func (n *unikernelAgent) exec(ctx context.Context, sandbox *Sandbox, c Container
 	return nil, nil
 }
 
-// startSandbox is the Noop agent Sandbox starting implementation. It does nothing.
-func (u *unikernelAgent) startSandbox(ctx context.Context, sandbox *Sandbox) error {
+func (u *unikernelAgent) start(ctx context.Context, sandbox *Sandbox, id string) error {
 	targetNS, err := ns.GetNS(sandbox.networkNS.NetNsPath)
 	if err != nil {
 		return err
@@ -89,9 +88,14 @@ func (u *unikernelAgent) startSandbox(ctx context.Context, sandbox *Sandbox) err
 		u.Logger().Error(err)
 		return err
 	}
-	u.containers[sandbox.id] = unikernelContainer{conn: conn}
+	u.containers[id] = unikernelContainer{conn: conn}
 
 	return nil
+}
+
+// startSandbox is the Noop agent Sandbox starting implementation. It does nothing.
+func (u *unikernelAgent) startSandbox(ctx context.Context, sandbox *Sandbox) error {
+	return u.start(ctx, sandbox, sandbox.id)
 }
 
 // stopSandbox is the Noop agent Sandbox stopping implementation. It does nothing.
@@ -101,24 +105,29 @@ func (u *unikernelAgent) stopSandbox(ctx context.Context, sandbox *Sandbox) erro
 }
 
 // createContainer is the Noop agent Container creation implementation. It does nothing.
-func (n *unikernelAgent) createContainer(ctx context.Context, sandbox *Sandbox, c *Container) (*Process, error) {
+func (u *unikernelAgent) createContainer(ctx context.Context, sandbox *Sandbox, c *Container) (*Process, error) {
 	return &Process{}, nil
 }
 
 // startContainer is the Noop agent Container starting implementation. It does nothing.
-func (n *unikernelAgent) startContainer(ctx context.Context, sandbox *Sandbox, c *Container) error {
-	return nil
+func (u *unikernelAgent) startContainer(ctx context.Context, sandbox *Sandbox, c *Container) error {
+	if c.id == sandbox.id {
+		return nil
+	}
+
+	return u.start(ctx, sandbox, c.id)
 }
 
 // stopContainer is the Noop agent Container stopping implementation. It does nothing.
-func (n *unikernelAgent) stopContainer(ctx context.Context, sandbox *Sandbox, c Container) error {
+func (u *unikernelAgent) stopContainer(ctx context.Context, sandbox *Sandbox, c Container) error {
+	u.containers[c.id].conn.Close()
 	return nil
 }
 
 // signalProcess is the Noop agent Container signaling implementation. It does nothing.
 func (u *unikernelAgent) signalProcess(ctx context.Context, c *Container, processID string, signal syscall.Signal, all bool) error {
-	u.containers[c.id].conn.Close()
-	return nil
+	_, err := u.containers[c.id].conn.Write([]byte("k"))
+	return err
 }
 
 // updateContainer is the Noop agent Container update implementation. It does nothing.
