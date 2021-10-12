@@ -353,6 +353,7 @@ func (s *Sandbox) WaitProcess(ctx context.Context, containerID, processID string
 		return 0, err
 	}
 
+	s.Logger().Error("s.WaitProcess")
 	return c.wait(ctx, processID)
 }
 

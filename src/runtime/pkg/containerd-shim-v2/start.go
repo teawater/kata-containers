@@ -80,6 +80,7 @@ func startContainer(ctx context.Context, s *service, c *container) (retErr error
 			return err
 		}
 		c.ttyio = tty
+		shimLog.Warn("ioCopy")
 		go ioCopy(c.exitIOch, c.stdinCloser, tty, stdin, stdout, stderr)
 	} else {
 		// close the io exit channel, since there is no io for this container,
