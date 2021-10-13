@@ -7,6 +7,7 @@
 package virtcontainers
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"net"
@@ -77,7 +78,7 @@ func (n *unikernelAgent) exec(ctx context.Context, sandbox *Sandbox, c Container
 }
 
 func (u *unikernelAgent) startSandbox(ctx context.Context, sandbox *Sandbox) error {
-	u.Logger().Infof("startSandbox %s", sandbox.id, string(debug.Stack()))
+	//u.Logger().Infof("startSandbox %s", sandbox.id, string(debug.Stack()))
 	targetNS, err := ns.GetNS(sandbox.networkNS.NetNsPath)
 	if err != nil {
 		return err
@@ -108,9 +109,17 @@ func (u *unikernelAgent) createContainer(ctx context.Context, sandbox *Sandbox, 
 
 // startContainer is the Noop agent Container starting implementation. It does nothing.
 func (u *unikernelAgent) startContainer(ctx context.Context, sandbox *Sandbox, c *Container) error {
-	u.Logger().Infof("startContainer sid %s cid %s %s", sandbox.id, c.id, string(debug.Stack()))
+	//u.Logger().Infof("startContainer sid %s cid %s %+v", sandbox.id, c.id, c)
+	//u.Logger().Infof("startContainer sid %s cid %s %+v", sandbox.id, c.id, c.config)
 	if c.id == sandbox.id {
 		return nil
+	}
+
+	err := u.writeString("c")
+	if err != nil {
+		err = fmt.Errorf("startContainer writeString failed with %s\n", err)
+		u.Logger().Error(err)
+		return err
 	}
 
 	u.containers[c.id] = &unikernelContainer{ch: make(chan string, 100), closed: false}
@@ -180,6 +189,15 @@ func (n *unikernelAgent) check(ctx context.Context) error {
 func (u *unikernelAgent) statsContainer(ctx context.Context, sandbox *Sandbox, c Container) (*ContainerStats, error) {
 	u.Logger().Infof("statsContainer cid %s %s %s", c.id, string(debug.Stack()))
 	return &ContainerStats{}, nil
+}
+
+func (u *unikernelAgent) writeString(content string) error {
+	writer := bufio.NewWriter(u.conn)
+	_, err := writer.WriteString(content)
+	if err == nil {
+		err = writer.Flush()
+	}
+	return err
 }
 
 // waitProcess is the Noop agent process waiter. It does nothing.
