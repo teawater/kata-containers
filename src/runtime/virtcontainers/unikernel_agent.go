@@ -12,6 +12,7 @@ import (
 	"io"
 	"net"
 	"runtime/debug"
+	"strings"
 	"syscall"
 	"time"
 
@@ -36,6 +37,7 @@ type unikernelAgent struct {
 
 type unikernelContainer struct {
 	ch     chan string
+	exitch chan struct{}
 	closed bool
 }
 
@@ -115,14 +117,14 @@ func (u *unikernelAgent) startContainer(ctx context.Context, sandbox *Sandbox, c
 		return nil
 	}
 
-	err := u.writeString("c")
+	err := u.writeString("c" + c.id + "," + "/home/t4/teawater/hello.wasm")
 	if err != nil {
 		err = fmt.Errorf("startContainer writeString failed with %s\n", err)
 		u.Logger().Error(err)
 		return err
 	}
 
-	u.containers[c.id] = &unikernelContainer{ch: make(chan string, 100), closed: false}
+	u.containers[c.id] = &unikernelContainer{ch: make(chan string, 100), exitch: make(chan struct{}, 0), closed: false}
 
 	return nil
 }
@@ -207,11 +209,8 @@ func (u *unikernelAgent) waitProcess(ctx context.Context, c *Container, processI
 	uc, ok := u.containers[c.id]
 	if ok {
 		for {
-			v, ok := <-uc.ch
-			if !ok {
-				break
-			}
-			u.Logger().Infof("waitProcess cid %s %s", c.id, v)
+			<-uc.exitch
+			u.Logger().Infof("waitProcess cid %s", c.id)
 		}
 	} else {
 		var buf [512]byte
@@ -225,7 +224,14 @@ func (u *unikernelAgent) waitProcess(ctx context.Context, c *Container, processI
 				u.Logger().Error(err)
 				return 0, err
 			}
-			u.Logger().Infof("waitProcess conn %s", string(buf[:n]))
+			gots := string(buf[:n])
+			//u.Logger().Infof("waitProcess conn %s", gots)
+			s := strings.SplitN(gots, ":", 2)
+			if len(s) != 2 {
+				u.Logger().Errorf("waitProcess conn %s format is not right", gots)
+			}
+			u.Logger().Infof("waitProcess send %s to %s", s[1], s[0])
+			u.containers[s[0]].ch <- s[1]
 		}
 	}
 
@@ -249,13 +255,23 @@ func (n *unikernelAgent) closeProcessStdin(ctx context.Context, c *Container, Pr
 
 // readProcessStdout is the Noop agent process stdout reader. It does nothing.
 func (u *unikernelAgent) readProcessStdout(ctx context.Context, c *Container, processID string, data []byte) (int, error) {
-	u.Logger().Infof("readProcessStdout cid %s", c.id)
-	return 0, io.EOF
+	//u.Logger().Infof("readProcessStdout cid %s", c.id)
+	v, ok := <-u.containers[c.id].ch
+	if !ok {
+		close(u.containers[c.id].exitch)
+		return 0, io.EOF
+	}
+	copy(data, v)
+
+	u.Logger().Infof("readProcessStdout cid %s %s %d", c.id, v, len(v))
+
+	return len(v), io.EOF
 }
 
 // readProcessStderr is the Noop agent process stderr reader. It does nothing.
 func (u *unikernelAgent) readProcessStderr(ctx context.Context, c *Container, processID string, data []byte) (int, error) {
-	u.Logger().Infof("readProcessStderr cid %s", c.id)
+	//u.Logger().Infof("readProcessStderr cid %s", c.id)
+	<-u.containers[c.id].exitch
 	return 0, io.EOF
 }
 

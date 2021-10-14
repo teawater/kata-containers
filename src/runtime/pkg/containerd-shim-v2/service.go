@@ -407,6 +407,8 @@ func (s *service) Create(ctx context.Context, r *taskAPI.CreateTaskRequest) (_ *
 
 		s.containers[r.ID] = container
 
+		shimLog.WithField("container", r.ID).WithField("r.Stdout", r.Stdout).Debug("Create() run")
+
 		s.send(&eventstypes.TaskCreate{
 			ContainerID: r.ID,
 			Bundle:      r.Bundle,
