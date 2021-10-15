@@ -14,6 +14,7 @@ import (
 	"path"
 	"path/filepath"
 	"runtime/debug"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -151,18 +152,31 @@ func (u *unikernelAgent) startContainer(ctx context.Context, sandbox *Sandbox, c
 
 // stopContainer is the Noop agent Container stopping implementation. It does nothing.
 func (u *unikernelAgent) stopContainer(ctx context.Context, sandbox *Sandbox, c Container) error {
-	if !u.containers[c.id].closed {
-		close(u.containers[c.id].ch)
-		u.containers[c.id].closed = true
+	u.Logger().Infof("stopContainer sid %s cid %s", sandbox.id, c.id)
+	uc, ok := u.containers[c.id]
+	if ok {
+		if !uc.closed {
+			close(uc.ch)
+			uc.closed = true
+		}
+	} else {
+		u.conn.Close()
 	}
 	return nil
 }
 
 // signalProcess is the Noop agent Container signaling implementation. It does nothing.
 func (u *unikernelAgent) signalProcess(ctx context.Context, c *Container, processID string, signal syscall.Signal, all bool) error {
-	if !u.containers[c.id].closed {
-		close(u.containers[c.id].ch)
-		u.containers[c.id].closed = true
+	u.Logger().Infof("signalProcess cid %s signal %+v", c.id, signal)
+	uc, ok := u.containers[c.id]
+	if ok {
+		if !uc.closed {
+			close(uc.ch)
+			uc.closed = true
+		}
+	} else {
+		u.writeString("k")
+		u.conn.Close()
 	}
 	return nil
 }
@@ -222,38 +236,84 @@ func (u *unikernelAgent) writeString(content string) error {
 	return err
 }
 
+func (u *unikernelAgent) readString() (string, error) {
+	var buf [512]byte
+	n, err := u.conn.Read(buf[0:])
+	if err != nil {
+		return "", err
+	}
+	return string(buf[:n]), nil
+}
+
 // waitProcess is the Noop agent process waiter. It does nothing.
 func (u *unikernelAgent) waitProcess(ctx context.Context, c *Container, processID string) (int32, error) {
 	u.Logger().Infof("waitProcess cid %s pid %s %s", c.id, processID, string(debug.Stack()))
 
 	uc, ok := u.containers[c.id]
 	if ok {
-		for {
-			<-uc.exitch
-			u.Logger().Infof("waitProcess cid %s", c.id)
-		}
+		<-uc.exitch
 	} else {
-		var buf [512]byte
+		buf := ""
+		data_size := 0
+		need_read := true
 		for {
-			n, err := u.conn.Read(buf[0:])
-			if err != nil {
-				if err == io.EOF {
-					break
+			u.Logger().Infof("waitProcess loop buf %s data_size %d need_read %v", buf, data_size, need_read)
+			if need_read {
+				gots, err := u.readString()
+				if err != nil {
+					if err == io.EOF {
+						u.Logger().Infof("waitProcess conn closed")
+						break
+					}
+					err = fmt.Errorf("waitProcess readString failed with %s", err)
+					u.Logger().Error(err)
+					return 0, err
 				}
-				err = fmt.Errorf("waitProcess %s failed with %s\n", unikernelUrl, err)
-				u.Logger().Error(err)
-				return 0, err
+				u.Logger().Infof("waitProcess readString %s", gots)
+				buf += gots
+			} else {
+				// Reopen need_read to make true is the default value of need_read.
+				// if don't need read in following, set need_read to false.
+				need_read = true
 			}
-			gots := string(buf[:n])
-			//u.Logger().Infof("waitProcess conn %s", gots)
-			s := strings.SplitN(gots, ":", 2)
+
+			if data_size == 0 {
+				s := strings.SplitN(buf, ":", 2)
+				if len(s) != 2 {
+					continue
+				}
+				u64, err := strconv.ParseUint(s[0], 10, 64)
+				if err != nil {
+					err = fmt.Errorf("waitProcess format of %s is not right %s", s[0], err)
+					u.Logger().Error(err)
+					return 0, err
+				}
+				data_size = int(u64)
+				buf = s[1]
+			}
+
+			// setup data
+			if len(buf) < data_size {
+				continue
+			}
+			data := buf[:data_size]
+
+			buf = buf[data_size:]
+			data_size = 0
+			if len(buf) > 0 {
+				need_read = false
+			}
+
+			// handle data
+			s := strings.SplitN(data, ":", 2)
 			if len(s) != 2 {
-				u.Logger().Errorf("waitProcess conn %s format is not right", gots)
+				u.Logger().Errorf("waitProcess data %s format is not right", data)
 			}
 			u.Logger().Infof("waitProcess send %s to %s", s[1], s[0])
 			u.containers[s[0]].ch <- s[1]
 		}
 	}
+	u.Logger().Infof("waitProcess cid %s exit", c.id)
 
 	return 0, nil
 }
@@ -278,6 +338,7 @@ func (u *unikernelAgent) readProcessStdout(ctx context.Context, c *Container, pr
 	//u.Logger().Infof("readProcessStdout cid %s", c.id)
 	v, ok := <-u.containers[c.id].ch
 	if !ok {
+		u.Logger().Infof("readProcessStdout cid %s exitch", c.id)
 		close(u.containers[c.id].exitch)
 		return 0, io.EOF
 	}
