@@ -11,6 +11,8 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"path"
+	"path/filepath"
 	"runtime/debug"
 	"strings"
 	"syscall"
@@ -117,9 +119,27 @@ func (u *unikernelAgent) startContainer(ctx context.Context, sandbox *Sandbox, c
 		return nil
 	}
 
-	err := u.writeString("c" + c.id + "," + "/home/t4/teawater/hello.wasm")
+	if len(c.config.Cmd.Args) != 1 {
+		err := fmt.Errorf("startContainer cid %s command is not set", c.id)
+		u.Logger().Error(err)
+		return err
+	}
+	cmd := ""
+	cmd_dir := filepath.Dir(c.config.Cmd.Args[0])
+	for _, mount := range c.mounts {
+		if mount.Destination == cmd_dir {
+			cmd = path.Join(mount.Source, filepath.Base(c.config.Cmd.Args[0]))
+			break
+		}
+	}
+	if cmd == "" {
+		cmd = path.Join(c.rootFs.Target, c.config.Cmd.Args[0])
+	}
+	u.Logger().Infof("startContainer cmd %s", cmd)
+
+	err := u.writeString("c" + c.id + "," + cmd)
 	if err != nil {
-		err = fmt.Errorf("startContainer writeString failed with %s\n", err)
+		err = fmt.Errorf("startContainer writeString failed with %s", err)
 		u.Logger().Error(err)
 		return err
 	}
@@ -263,9 +283,10 @@ func (u *unikernelAgent) readProcessStdout(ctx context.Context, c *Container, pr
 	}
 	copy(data, v)
 
-	u.Logger().Infof("readProcessStdout cid %s %s %d", c.id, v, len(v))
+	//u.Logger().Infof("readProcessStdout cid %s %s %d", c.id, v, len(v))
+	//u.Logger().Infof("readProcessStdout cid %s %s %s", c.id, string(debug.Stack()))
 
-	return len(v), io.EOF
+	return len(v), nil
 }
 
 // readProcessStderr is the Noop agent process stderr reader. It does nothing.
