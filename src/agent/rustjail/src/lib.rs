@@ -42,6 +42,11 @@ pub mod specconv;
 pub mod sync;
 pub mod sync_with_async;
 pub mod validator;
+#[cfg(all(
+    feature = "wasm",
+    not(any(target_arch = "powerpc", target_arch = "powerpc64"))
+))]
+pub mod wasm;
 
 use std::collections::HashMap;
 

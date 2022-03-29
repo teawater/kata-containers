@@ -104,6 +104,11 @@ struct AgentOpts {
 #[derive(Parser)]
 enum SubCommand {
     Init {},
+    #[cfg(all(
+        feature = "wasm",
+        not(any(target_arch = "powerpc", target_arch = "powerpc64"))
+    ))]
+    Wasm {},
 }
 
 #[instrument]
@@ -113,6 +118,11 @@ fn announce(logger: &Logger, config: &AgentConfig) {
     "agent-version" =>  version::AGENT_VERSION,
     "api-version" => version::API_VERSION,
     "config" => format!("{:?}", config),
+    #[cfg(all(
+        feature = "wasm",
+        not(any(target_arch = "powerpc", target_arch = "powerpc64"))
+    ))]
+    "wasm" => format!("supported"),
     );
 }
 
@@ -284,9 +294,16 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
         exit(0);
     }
 
-    if let Some(SubCommand::Init {}) = args.subcmd {
+    if let Some(subcmd) = args.subcmd {
         reset_sigpipe();
-        rustjail::container::init_child();
+        match subcmd {
+            SubCommand::Init {} => rustjail::container::init_child(),
+            #[cfg(all(
+                feature = "wasm",
+                not(any(target_arch = "powerpc", target_arch = "powerpc64"))
+            ))]
+            SubCommand::Wasm {} => rustjail::wasm::run_wasm()?,
+        }
         exit(0);
     }
 

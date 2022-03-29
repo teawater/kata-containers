@@ -66,15 +66,21 @@ use tokio::sync::Mutex;
 
 pub const EXEC_FIFO_FILENAME: &str = "exec.fifo";
 
-const INIT: &str = "INIT";
-const NO_PIVOT: &str = "NO_PIVOT";
-const CRFD_FD: &str = "CRFD_FD";
-const CWFD_FD: &str = "CWFD_FD";
-const CLOG_FD: &str = "CLOG_FD";
-const FIFO_FD: &str = "FIFO_FD";
+pub const INIT: &str = "INIT";
+pub const NO_PIVOT: &str = "NO_PIVOT";
+#[cfg(all(
+    feature = "wasm",
+    not(any(target_arch = "powerpc", target_arch = "powerpc64"))
+))]
+pub const WASM: &str = "WASM";
+pub const CRFD_FD: &str = "CRFD_FD";
+pub const CWFD_FD: &str = "CWFD_FD";
+pub const CLOG_FD: &str = "CLOG_FD";
+pub const FIFO_FD: &str = "FIFO_FD";
 const HOME_ENV_KEY: &str = "HOME";
 const PIDNS_FD: &str = "PIDNS_FD";
 const CONSOLE_SOCKET_FD: &str = "CONSOLE_SOCKET_FD";
+const ANNOTATIONS_WASM: &str = "io.katacontainers.container.config.wasm";
 
 #[derive(Debug)]
 pub struct ContainerStatus {
@@ -327,15 +333,51 @@ pub fn init_child() {
     }
 }
 
-fn do_init_child(cwfd: RawFd) -> Result<()> {
-    lazy_static::initialize(&NAMESPACES);
-    lazy_static::initialize(&DEFAULT_DEVICES);
+#[cfg(all(
+    feature = "wasm",
+    not(any(target_arch = "powerpc", target_arch = "powerpc64"))
+))]
+fn do_wasm_setup(
+    init: bool,
+    no_pivot: bool,
+    crfd: RawFd,
+    cwfd: RawFd,
+    cfd_log: RawFd,
+    fifofd: RawFd,
+) -> Result<()> {
+    let mut envs = Vec::new();
+    envs.push(format!("{}={}", INIT, init));
+    envs.push(format!("{}={}", NO_PIVOT, no_pivot));
+    envs.push(format!("{}={}", CRFD_FD, crfd));
+    envs.push(format!("{}={}", CWFD_FD, cwfd));
+    envs.push(format!("{}={}", CLOG_FD, cfd_log));
+    if init {
+        envs.push(format!("{}={}", FIFO_FD, fifofd));
+    }
 
+    let exec_path = std::env::current_exe()?;
+
+    do_exec_env(
+        &[
+            exec_path.as_path().display().to_string(),
+            "wasm".to_string(),
+        ],
+        &envs,
+    );
+}
+
+fn do_init_child(cwfd: RawFd) -> Result<()> {
     let init = std::env::var(INIT)?.eq(format!("{}", true).as_str());
 
     let no_pivot = std::env::var(NO_PIVOT)?.eq(format!("{}", true).as_str());
     let crfd = std::env::var(CRFD_FD)?.parse::<i32>().unwrap();
     let cfd_log = std::env::var(CLOG_FD)?.parse::<i32>().unwrap();
+
+    #[cfg(all(
+        feature = "wasm",
+        not(any(target_arch = "powerpc", target_arch = "powerpc64"))
+    ))]
+    let wasm = std::env::var(WASM)?.eq(format!("{}", true).as_str());
 
     // get the pidns fd from parent, if parent had passed the pidns fd,
     // then get it and join in this pidns; otherwise, create a new pidns
@@ -368,6 +410,51 @@ fn do_init_child(cwfd: RawFd) -> Result<()> {
             )));
         }
     }
+
+    let mut fifofd = -1;
+    if init {
+        fifofd = std::env::var(FIFO_FD)?.parse::<i32>().unwrap();
+    }
+
+    #[cfg(all(
+        feature = "wasm",
+        not(any(target_arch = "powerpc", target_arch = "powerpc64"))
+    ))]
+    if wasm {
+        do_wasm_setup(init, no_pivot, crfd, cwfd, cfd_log, fifofd)?;
+    }
+
+    #[cfg(feature = "seccomp")]
+    let (args, oci_process, linux) = do_child_setup(cwfd, crfd, cfd_log, init, no_pivot)?;
+    #[cfg(not(feature = "seccomp"))]
+    let (args, oci_process, _) = do_child_setup(cwfd, crfd, cfd_log, init, no_pivot)?;
+
+    log_child!(cfd_log, "ready to run exec");
+
+    do_child_setup_release(
+        cwfd,
+        crfd,
+        cfd_log,
+        fifofd,
+        init,
+        oci_process,
+        #[cfg(feature = "seccomp")]
+        linux,
+    )?;
+
+    do_exec(&args);
+}
+
+pub fn do_child_setup(
+    cwfd: RawFd,
+    crfd: RawFd,
+    cfd_log: RawFd,
+    init: bool,
+    no_pivot: bool,
+) -> Result<(Vec<String>, oci::Process, Linux)> {
+    lazy_static::initialize(&NAMESPACES);
+    lazy_static::initialize(&DEFAULT_DEVICES);
+
     log_child!(cfd_log, "child process start run");
     let buf = read_sync(crfd)?;
     let spec_str = std::str::from_utf8(&buf)?;
@@ -643,11 +730,6 @@ fn do_init_child(cwfd: RawFd) -> Result<()> {
     let args = oci_process.args.to_vec();
     let env = oci_process.env.to_vec();
 
-    let mut fifofd = -1;
-    if init {
-        fifofd = std::env::var(FIFO_FD)?.parse::<i32>().unwrap();
-    }
-
     // cleanup the env inherited from parent
     for (key, _) in env::vars() {
         env::remove_var(key);
@@ -682,7 +764,19 @@ fn do_init_child(cwfd: RawFd) -> Result<()> {
 
     // notify parent that the child's ready to start
     write_sync(cwfd, SYNC_SUCCESS, "")?;
-    log_child!(cfd_log, "ready to run exec");
+
+    Ok((args, oci_process, (*linux).clone()))
+}
+
+pub fn do_child_setup_release(
+    cwfd: RawFd,
+    crfd: RawFd,
+    cfd_log: RawFd,
+    fifofd: RawFd,
+    init: bool,
+    oci_process: oci::Process,
+    #[cfg(feature = "seccomp")] linux: Linux,
+) -> Result<()> {
     let _ = unistd::close(cfd_log);
     let _ = unistd::close(crfd);
     let _ = unistd::close(cwfd);
@@ -724,7 +818,7 @@ fn do_init_child(cwfd: RawFd) -> Result<()> {
         }
     }
 
-    do_exec(&args);
+    Ok(())
 }
 
 // set_stdio_permissions fixes the permissions of PID 1's STDIO
@@ -976,6 +1070,23 @@ impl BaseContainer for LinuxContainer {
             child = child.env(PIDNS_FD, format!("{}", pidns.unwrap()));
         }
 
+        #[cfg(all(
+            feature = "wasm",
+            not(any(target_arch = "powerpc", target_arch = "powerpc64"))
+        ))]
+        {
+            let mut wasm = false;
+            if let Some(oci) = &self.config()?.spec {
+                if let Some(val) = oci.annotations.get(ANNOTATIONS_WASM) {
+                    if val.eq_ignore_ascii_case("yes") || val.eq_ignore_ascii_case("true") {
+                        wasm = true;
+                        info!(logger, "this is a wasm container");
+                    }
+                }
+            }
+            child = child.env(WASM, format!("{}", wasm));
+        }
+
         child.spawn()?;
 
         unistd::close(crfd)?;
@@ -1166,17 +1277,31 @@ where
 }
 
 fn do_exec(args: &[String]) -> ! {
+    do_exec_env(args, &[])
+}
+
+fn do_exec_env(args: &[String], envs: &[String]) -> ! {
     let path = &args[0];
     let p = CString::new(path.to_string()).unwrap();
     let sa: Vec<CString> = args
         .iter()
         .map(|s| CString::new(s.to_string()).unwrap_or_default())
         .collect();
-
-    let _ = unistd::execvp(p.as_c_str(), &sa).map_err(|e| match e {
-        nix::Error::UnknownErrno => std::process::exit(-2),
-        _ => std::process::exit(e as i32),
-    });
+    if envs.is_empty() {
+        let _ = unistd::execvp(p.as_c_str(), &sa).map_err(|e| match e {
+            nix::Error::UnknownErrno => std::process::exit(-2),
+            _ => std::process::exit(e as i32),
+        });
+    } else {
+        let se: Vec<CString> = envs
+            .iter()
+            .map(|s| CString::new(s.to_string()).unwrap_or_default())
+            .collect();
+        let _ = unistd::execvpe(p.as_c_str(), &sa, &se).map_err(|e| match e {
+            nix::Error::UnknownErrno => std::process::exit(-2),
+            _ => std::process::exit(e as i32),
+        });
+    }
 
     unreachable!()
 }

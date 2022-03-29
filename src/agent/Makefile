@@ -25,12 +25,26 @@ export VERSION_COMMIT := $(if $(COMMIT),$(VERSION)-$(COMMIT),$(VERSION))
 
 EXTRA_RUSTFEATURES :=
 
+ARCH := $(shell uname -m | sed -e s/powerpc.*/powerpc/ | sed -e s/ppc.*/powerpc/)
+
 ##VAR SECCOMP=yes|no define if agent enables seccomp feature
 SECCOMP := yes
 
+##VAR WASM=yes|no define if agent enables wasm feature
+WASM := yes
+## wasmer is not support powerpc
+ifeq ($(ARCH),powerpc)
+	WASM = no
+endif
+
 # Enable seccomp feature of rust build
 ifeq ($(SECCOMP),yes)
-    override EXTRA_RUSTFEATURES += seccomp
+    override EXTRA_RUSTFEATURES := $(EXTRA_RUSTFEATURES)seccomp,
+endif
+
+# Enable wasm feature of rust build
+ifeq ($(WASM),yes)
+    override EXTRA_RUSTFEATURES := $(EXTRA_RUSTFEATURES)wasm,
 endif
 
 ##VAR STANDARD_OCI_RUNTIME=yes|no define if agent enables standard oci runtime feature
