@@ -41,6 +41,8 @@ pub mod sync;
 pub mod sync_with_async;
 pub mod utils;
 pub mod validator;
+#[cfg(feature = "wasm")]
+pub mod wasm;
 
 use std::collections::HashMap;
 

@@ -105,6 +105,13 @@ struct AgentOpts {
 #[derive(Parser)]
 enum SubCommand {
     Init {},
+    #[cfg(feature = "wasm")]
+    Wasm {
+        //#[clap(required = true, parse(from_os_str))]
+        rootfs: String,
+        wasm_path: String,
+        wargs: Vec<String>,
+    },
 }
 
 #[instrument]
@@ -289,9 +296,13 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
         exit(0);
     }
 
-    if let Some(SubCommand::Init {}) = args.subcmd {
+    if let Some(subcmd) = args.subcmd {
         reset_sigpipe();
-        rustjail::container::init_child();
+        match subcmd {
+            SubCommand::Init {} => rustjail::container::init_child(),
+            #[cfg(feature = "wasm")]
+            SubCommand::Wasm { rootfs, wasm_path, wargs } => rustjail::wasm::run_wasm(rootfs, wasm_path, wargs),
+        }
         exit(0);
     }
 

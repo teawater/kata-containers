@@ -76,3 +76,4 @@ lto = true
 
 [features]
 seccomp = ["rustjail/seccomp"]
+wasm = ["rustjail/wasm"]
