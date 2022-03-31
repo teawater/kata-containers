@@ -74,6 +74,8 @@ pub const CLOG_FD: &str = "CLOG_FD";
 const FIFO_FD: &str = "FIFO_FD";
 const HOME_ENV_KEY: &str = "HOME";
 const PIDNS_FD: &str = "PIDNS_FD";
+#[cfg(feature = "wasm")]
+const WASM: &str = "WASM";
 
 #[derive(Debug)]
 pub struct ContainerStatus {
@@ -328,6 +330,9 @@ fn do_init_child(cwfd: RawFd) -> Result<()> {
     let crfd = std::env::var(CRFD_FD)?.parse::<i32>().unwrap();
     let cfd_log = std::env::var(CLOG_FD)?.parse::<i32>().unwrap();
 
+    #[cfg(feature = "wasm")]
+    let wasm = std::env::var(WASM)?.eq(format!("{}", true).as_str());
+
     // get the pidns fd from parent, if parent had passed the pidns fd,
     // then get it and join in this pidns; otherwise, create a new pidns
     // by unshare from the parent pidns.
@@ -359,6 +364,15 @@ fn do_init_child(cwfd: RawFd) -> Result<()> {
             )));
         }
     }
+
+    let args = do_init_child_real(cwfd, cfd_log, crfd, init, no_pivot)?;
+
+    do_exec(&args);
+}
+
+fn do_init_child_real(cwfd: RawFd, cfd_log: RawFd, crfd: RawFd, init: bool, no_pivot: bool) -> Result<Vec<String>> {
+    lazy_static::initialize(&NAMESPACES);
+    lazy_static::initialize(&DEFAULT_DEVICES);
 
     log_child!(cfd_log, "child process start run");
     let buf = read_sync(crfd)?;
@@ -698,7 +712,7 @@ fn do_init_child(cwfd: RawFd) -> Result<()> {
         }
     }
 
-    do_exec(&args);
+    Ok(args)
 }
 
 // set_stdio_permissions fixes the permissions of PID 1's STDIO
@@ -945,6 +959,13 @@ impl BaseContainer for LinuxContainer {
 
         if pidns.is_some() {
             child = child.env(PIDNS_FD, format!("{}", pidns.unwrap()));
+        }
+
+        #[cfg(feature = "wasm")]
+        if p.oci.args[0].ends_with(".wasm") {
+            child = child.env(WASM, format!("{}", true));
+        } else {
+            child = child.env(WASM, format!("{}", false));
         }
 
         child.spawn()?;
