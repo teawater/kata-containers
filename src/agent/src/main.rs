@@ -106,12 +106,7 @@ struct AgentOpts {
 enum SubCommand {
     Init {},
     #[cfg(feature = "wasm")]
-    Wasm {
-        //#[clap(required = true, parse(from_os_str))]
-        rootfs: String,
-        wasm_path: String,
-        wargs: Vec<String>,
-    },
+    Wasm {},
 }
 
 #[instrument]
@@ -301,7 +296,7 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
         match subcmd {
             SubCommand::Init {} => rustjail::container::init_child(),
             #[cfg(feature = "wasm")]
-            SubCommand::Wasm { rootfs, wasm_path, wargs } => rustjail::wasm::run_wasm(rootfs, wasm_path, wargs),
+            SubCommand::Wasm {} => rustjail::wasm::run_wasm(),
         }
         exit(0);
     }

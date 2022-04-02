@@ -66,16 +66,16 @@ use crate::utils;
 
 const EXEC_FIFO_FILENAME: &str = "exec.fifo";
 
-const INIT: &str = "INIT";
-const NO_PIVOT: &str = "NO_PIVOT";
-const CRFD_FD: &str = "CRFD_FD";
+pub const INIT: &str = "INIT";
+pub const NO_PIVOT: &str = "NO_PIVOT";
+#[cfg(feature = "wasm")]
+pub const WASM: &str = "WASM";
+pub const CRFD_FD: &str = "CRFD_FD";
 pub const CWFD_FD: &str = "CWFD_FD";
 pub const CLOG_FD: &str = "CLOG_FD";
-const FIFO_FD: &str = "FIFO_FD";
+pub const FIFO_FD: &str = "FIFO_FD";
 const HOME_ENV_KEY: &str = "HOME";
 const PIDNS_FD: &str = "PIDNS_FD";
-#[cfg(feature = "wasm")]
-const WASM: &str = "WASM";
 
 #[derive(Debug)]
 pub struct ContainerStatus {
@@ -321,9 +321,6 @@ pub fn init_child() {
 }
 
 fn do_init_child(cwfd: RawFd) -> Result<()> {
-    lazy_static::initialize(&NAMESPACES);
-    lazy_static::initialize(&DEFAULT_DEVICES);
-
     let init = std::env::var(INIT)?.eq(format!("{}", true).as_str());
 
     let no_pivot = std::env::var(NO_PIVOT)?.eq(format!("{}", true).as_str());
@@ -365,12 +362,50 @@ fn do_init_child(cwfd: RawFd) -> Result<()> {
         }
     }
 
-    let args = do_init_child_real(cwfd, cfd_log, crfd, init, no_pivot)?;
+    let mut fifofd = -1;
+    if init {
+        fifofd = std::env::var(FIFO_FD)?.parse::<i32>().unwrap();
+    }
+
+    #[cfg(feature = "wasm")]
+    if wasm {
+        let mut envs = Vec::new();
+        envs.push(format!("{}={}", INIT, init));
+        envs.push(format!("{}={}", NO_PIVOT, no_pivot));
+        envs.push(format!("{}={}", CRFD_FD, crfd));
+        envs.push(format!("{}={}", CWFD_FD, cwfd));
+        envs.push(format!("{}={}", CLOG_FD, cfd_log));
+        if init {
+            envs.push(format!("{}={}", FIFO_FD, fifofd));
+        }
+
+        let exec_path = std::env::current_exe()?;
+
+        do_exec_env(
+            &vec![
+                exec_path.as_path().display().to_string(),
+                "wasm".to_string(),
+            ],
+            &envs,
+        );
+    }
+
+    let (args, oci_process) = do_child_setup(cwfd, crfd, cfd_log, init, no_pivot)?;
+
+    log_child!(cfd_log, "ready to run exec");
+
+    do_child_setup_release(cwfd, crfd, cfd_log, fifofd, init, oci_process)?;
 
     do_exec(&args);
 }
 
-fn do_init_child_real(cwfd: RawFd, cfd_log: RawFd, crfd: RawFd, init: bool, no_pivot: bool) -> Result<Vec<String>> {
+pub fn do_child_setup(
+    cwfd: RawFd,
+    crfd: RawFd,
+    cfd_log: RawFd,
+    init: bool,
+    no_pivot: bool,
+) -> Result<(Vec<String>, oci::Process)> {
     lazy_static::initialize(&NAMESPACES);
     lazy_static::initialize(&DEFAULT_DEVICES);
 
@@ -645,11 +680,6 @@ fn do_init_child_real(cwfd: RawFd, cfd_log: RawFd, crfd: RawFd, init: bool, no_p
     let args = oci_process.args.to_vec();
     let env = oci_process.env.to_vec();
 
-    let mut fifofd = -1;
-    if init {
-        fifofd = std::env::var(FIFO_FD)?.parse::<i32>().unwrap();
-    }
-
     // cleanup the env inherited from parent
     for (key, _) in env::vars() {
         env::remove_var(key);
@@ -679,7 +709,18 @@ fn do_init_child_real(cwfd: RawFd, cfd_log: RawFd, crfd: RawFd, init: bool, no_p
 
     // notify parent that the child's ready to start
     write_sync(cwfd, SYNC_SUCCESS, "")?;
-    log_child!(cfd_log, "ready to run exec");
+
+    Ok((args, oci_process))
+}
+
+pub fn do_child_setup_release(
+    cwfd: RawFd,
+    crfd: RawFd,
+    cfd_log: RawFd,
+    fifofd: RawFd,
+    init: bool,
+    oci_process: oci::Process,
+) -> Result<()> {
     let _ = unistd::close(cfd_log);
     let _ = unistd::close(crfd);
     let _ = unistd::close(cwfd);
@@ -712,7 +753,7 @@ fn do_init_child_real(cwfd: RawFd, cfd_log: RawFd, crfd: RawFd, init: bool, no_p
         }
     }
 
-    Ok(args)
+    Ok(())
 }
 
 // set_stdio_permissions fixes the permissions of PID 1's STDIO
@@ -1116,17 +1157,31 @@ where
 }
 
 fn do_exec(args: &[String]) -> ! {
+    do_exec_env(args, &[])
+}
+
+fn do_exec_env(args: &[String], envs: &[String]) -> ! {
     let path = &args[0];
     let p = CString::new(path.to_string()).unwrap();
     let sa: Vec<CString> = args
         .iter()
         .map(|s| CString::new(s.to_string()).unwrap_or_default())
         .collect();
-
-    let _ = unistd::execvp(p.as_c_str(), &sa).map_err(|e| match e {
-        nix::Error::UnknownErrno => std::process::exit(-2),
-        _ => std::process::exit(e as i32),
-    });
+    if envs.is_empty() {
+        let _ = unistd::execvp(p.as_c_str(), &sa).map_err(|e| match e {
+            nix::Error::UnknownErrno => std::process::exit(-2),
+            _ => std::process::exit(e as i32),
+        });
+    } else {
+        let se: Vec<CString> = envs
+            .iter()
+            .map(|s| CString::new(s.to_string()).unwrap_or_default())
+            .collect();
+        let _ = unistd::execvpe(p.as_c_str(), &sa, &se).map_err(|e| match e {
+            nix::Error::UnknownErrno => std::process::exit(-2),
+            _ => std::process::exit(e as i32),
+        });
+    }
 
     unreachable!()
 }
