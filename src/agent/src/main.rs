@@ -104,6 +104,18 @@ struct AgentOpts {
 #[derive(Parser)]
 enum SubCommand {
     Init {},
+    #[cfg(all(
+        feature = "wasm",
+        any(
+            target_arch = "x86_64",
+            target_arch = "x86",
+            target_arch = "aarch64",
+            target_arch = "arm",
+            target_arch = "riscv64",
+            target_arch = "riscv32"
+        )
+    ))]
+    Wasm {},
 }
 
 #[instrument]
@@ -113,6 +125,17 @@ fn announce(logger: &Logger, config: &AgentConfig) {
     "agent-version" =>  version::AGENT_VERSION,
     "api-version" => version::API_VERSION,
     "config" => format!("{:?}", config),
+    "wasm_support" => cfg!(all(
+        feature = "wasm",
+        any(
+            target_arch = "x86_64",
+            target_arch = "x86",
+            target_arch = "aarch64",
+            target_arch = "arm",
+            target_arch = "riscv64",
+            target_arch = "riscv32"
+        )
+    )),
     );
 }
 
@@ -284,9 +307,23 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
         exit(0);
     }
 
-    if let Some(SubCommand::Init {}) = args.subcmd {
+    if let Some(subcmd) = args.subcmd {
         reset_sigpipe();
-        rustjail::container::init_child();
+        match subcmd {
+            SubCommand::Init {} => rustjail::container::init_child(),
+            #[cfg(all(
+                feature = "wasm",
+                any(
+                    target_arch = "x86_64",
+                    target_arch = "x86",
+                    target_arch = "aarch64",
+                    target_arch = "arm",
+                    target_arch = "riscv64",
+                    target_arch = "riscv32"
+                )
+            ))]
+            SubCommand::Wasm {} => rustjail::wasm::run_wasm()?,
+        }
         exit(0);
     }
 

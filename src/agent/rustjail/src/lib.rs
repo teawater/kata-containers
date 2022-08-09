@@ -42,6 +42,18 @@ pub mod specconv;
 pub mod sync;
 pub mod sync_with_async;
 pub mod validator;
+#[cfg(all(
+    feature = "wasm",
+    any(
+        target_arch = "x86_64",
+        target_arch = "x86",
+        target_arch = "aarch64",
+        target_arch = "arm",
+        target_arch = "riscv64",
+        target_arch = "riscv32"
+    )
+))]
+pub mod wasm;
 
 use std::collections::HashMap;
 
