@@ -38,6 +38,7 @@ use crate::specconv::CreateOpts;
 use crate::{mount, validator};
 
 use protocols::agent::StatsContainerResponse;
+use protocols::attestation_agent;
 
 use nix::errno::Errno;
 use nix::fcntl::{self, OFlag};
@@ -84,6 +85,10 @@ const HOME_ENV_KEY: &str = "HOME";
 const PIDNS_FD: &str = "PIDNS_FD";
 const PIDNS_ENABLED: &str = "PIDNS_ENABLED";
 const CONSOLE_SOCKET_FD: &str = "CONSOLE_SOCKET_FD";
+
+const ANNOTATION_APP_NAME_KEY: &str = "io.kubernetes.cri.container-name";
+const ANNOTATION_IMAGE_NAME_KEY: &str = "io.kubernetes.cri.image-name";
+pub const ANNOTATION_IMAGE_DIGEST_KEY: &str = "io.kubernetes.cri.image-digest";
 
 #[derive(Debug)]
 pub struct ContainerStatus {
@@ -240,6 +245,7 @@ pub trait BaseContainer {
     fn get_process(&mut self, eid: &str) -> Result<&mut Process>;
     fn stats(&self) -> Result<StatsContainerResponse>;
     fn set(&mut self, config: LinuxResources) -> Result<()>;
+    fn to_attestation_agent_container_info(&self) -> Result<attestation_agent::ContainerInfo>;
     async fn start(&mut self, p: Process) -> Result<()>;
     async fn run(&mut self, p: Process) -> Result<()>;
     async fn destroy(&mut self) -> Result<()>;
@@ -1369,6 +1375,19 @@ impl BaseContainer for LinuxContainer {
 
         Ok(())
     }
+
+    fn to_attestation_agent_container_info(&self) -> Result<attestation_agent::ContainerInfo> {
+        let mut ci = attestation_agent::ContainerInfo::new();
+
+        ci.set_id(self.id.clone());
+        ci.set_name(self.config.container_name.clone());
+        ci.set_app_name(self.get_annotation(ANNOTATION_APP_NAME_KEY)?);
+        ci.set_image(self.get_annotation(ANNOTATION_IMAGE_NAME_KEY)?);
+        ci.set_image_digest(self.get_annotation(ANNOTATION_IMAGE_DIGEST_KEY)?);
+        ci.set_pid(self.init_process_pid as u64);
+
+        Ok(ci)
+    }
 }
 
 use std::env;
@@ -1754,6 +1773,22 @@ impl LinuxContainer {
     pub fn set_console_socket(&mut self, console_socket: &Path) -> Result<()> {
         self.console_socket = console_socket.to_path_buf();
         Ok(())
+    }
+
+    fn get_annotation(&self, key: &str) -> Result<String> {
+        if let Some(spec) = self.config.spec.as_ref() {
+            if let Some(annotations) = spec.annotations() {
+                if let Some(v) = annotations.get(key) {
+                    return Ok(v.clone());
+                } else {
+                    return Err(anyhow!("no annotation {} in container.config.spec.annotations", key));
+                }
+            } else {
+                return Err(anyhow!("no annotations in container.config.spec"));
+            }
+        } else {
+            return Err(anyhow!("no spec in container.config"));
+        }
     }
 }
 

@@ -53,7 +53,9 @@ impl StorageHandler for ImagePullHandler {
             .cid
             .clone()
             .ok_or_else(|| anyhow!("failed to get container id"))?;
-        let bundle_path = image::pull_image(image_name, &cid, &image_pull_volume.metadata).await?;
+        let (bundle_path, image_digest) = image::pull_image(image_name, &cid, &image_pull_volume.metadata).await?;
+
+        ctx.image_digest = Some(image_digest);
 
         new_device(bundle_path)
     }

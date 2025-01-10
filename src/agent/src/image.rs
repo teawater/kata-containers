@@ -183,12 +183,12 @@ impl ImageService {
         image: &str,
         cid: &str,
         image_metadata: &HashMap<String, String>,
-    ) -> Result<String> {
+    ) -> Result<(String, String)> {
         info!(sl(), "image metadata: {image_metadata:?}");
 
         if Self::is_sandbox(image_metadata) {
             let mount_path = Self::unpack_pause_image(cid)?;
-            return Ok(mount_path);
+            return Ok((mount_path, "".to_string()));
         }
 
         // Image layers will store at KATA_IMAGE_WORK_DIR, generated bundles
@@ -201,12 +201,22 @@ impl ImageService {
             .image_client
             .pull_image(image, &bundle_path, &None, &None)
             .await;
-        match res {
-            Ok(image) => {
-                info!(
-                    sl(),
-                    "pull and unpack image {image:?}, cid: {cid:?} succeeded."
-                );
+        let image_digest = match res {
+            Ok(image_id) => {
+                let ret = self.image_client.get_image_digest(&image_id).await;
+                match ret {
+                    Ok(image_digest) => {
+                        info!(
+                            sl(),
+                            "pull and unpack image {image:?}, image_id {image_id:?}, image_digest {image_digest:?}, cid: {cid:?} succeeded."
+                        );
+                        image_digest
+                    }
+                    Err(e) => {
+                        error!(sl(), "get image digest failed with {:?}.", e.to_string());
+                        return Err(e);
+                    }
+                }
             }
             Err(e) => {
                 error!(
@@ -218,7 +228,10 @@ impl ImageService {
             }
         };
         let image_bundle_path = scoped_join(&bundle_path, "rootfs")?;
-        Ok(image_bundle_path.as_path().display().to_string())
+        Ok((
+            image_bundle_path.as_path().display().to_string(),
+            image_digest,
+        ))
     }
 }
 
@@ -285,7 +298,7 @@ pub async fn pull_image(
     image: &str,
     cid: &str,
     image_metadata: &HashMap<String, String>,
-) -> Result<String> {
+) -> Result<(String, String)> {
     let image_service = IMAGE_SERVICE.clone();
     let mut image_service = image_service.lock().await;
     let image_service = image_service

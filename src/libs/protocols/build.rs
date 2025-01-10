@@ -205,6 +205,7 @@ fn real_main() -> Result<(), std::io::Error> {
                 "protos/health.proto",
                 "protos/confidential_data_hub.proto",
                 "protos/remote.proto",
+                "protos/attestation_agent.proto",
             ],
             true,
         )?;

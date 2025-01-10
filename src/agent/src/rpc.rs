@@ -44,7 +44,10 @@ use protocols::health::{
 use protocols::types::Interface;
 use protocols::{agent_ttrpc_async as agent_ttrpc, health_ttrpc_async as health_ttrpc};
 use rustjail::cgroups::notifier;
-use rustjail::container::{BaseContainer, Container, LinuxContainer, SYSTEMD_CGROUP_PATH_FORMAT};
+use rustjail::container::{
+    BaseContainer, Container, LinuxContainer, ANNOTATION_IMAGE_DIGEST_KEY,
+    SYSTEMD_CGROUP_PATH_FORMAT,
+};
 use rustjail::mount::parse_mount_table;
 use rustjail::process::Process;
 use rustjail::specconv::CreateOpts;
@@ -245,13 +248,30 @@ impl AgentService {
         // After all those storages have been processed, no matter the order
         // here, the agent will rely on rustjail (using the oci.Mounts
         // list) to bind mount all of them inside the container.
+        let mut image_digest = None;
         let m = add_storages(
             sl(),
             req.storages.clone(),
             &self.sandbox,
             Some(req.container_id),
+            &mut image_digest,
         )
         .await?;
+        if let Some(digest) = image_digest {
+            debug!(sl(), "image digest: {}", digest);
+
+            let mut oci_annotations: Option<std::collections::HashMap<String, String>> =
+                oci.annotations().clone();
+
+            if oci_annotations.is_none() {
+                oci_annotations = Some(std::collections::HashMap::new());
+            }
+            if let Some(annotations) = oci_annotations.as_mut() {
+                annotations.insert(ANNOTATION_IMAGE_DIGEST_KEY.to_string(), digest.to_string());
+            }
+
+            oci.set_annotations(oci_annotations);
+        }
 
         let mut s = self.sandbox.lock().await;
         s.container_mounts.insert(cid.clone(), m);
@@ -292,7 +312,7 @@ impl AgentService {
             spec: Some(oci.clone()),
             rootless_euid: false,
             rootless_cgroup: false,
-            container_name,
+            container_name: container_name.clone(),
         };
 
         let mut ctr: LinuxContainer = LinuxContainer::new(
@@ -334,7 +354,15 @@ impl AgentService {
 
         s.update_shared_pidns(&ctr)?;
         s.setup_shared_mounts(&ctr, &req.shared_mounts)?;
+
+        if let Some(aa) = s.attestation_agent.as_ref() {
+            if let Err(e) = aa.send_container_event(&ctr, "start").await {
+                error!(sl(), "failed to send {} container event: {:?}", ctr.id, e);
+            }
+        }
+
         s.add_container(ctr);
+
         info!(sl(), "created container!");
 
         Ok(())
@@ -370,6 +398,19 @@ impl AgentService {
         req: protocols::agent::RemoveContainerRequest,
     ) -> Result<()> {
         let cid = req.container_id;
+
+        {
+            let sandbox = self.sandbox.lock().await;
+            let ctr = sandbox
+                .containers
+                .get(&cid)
+                .ok_or_else(|| anyhow!("Invalid container id"))?;
+            if let Some(aa) = sandbox.attestation_agent.as_ref() {
+                if let Err(e) = aa.send_container_event(&ctr, "die").await {
+                    error!(sl(), "failed to send {} container event: {:?}", cid, e);
+                }
+            }
+        }
 
         if req.timeout == 0 {
             let mut sandbox = self.sandbox.lock().await;
@@ -1267,9 +1308,16 @@ impl agent_ttrpc::AgentService for AgentService {
             s.setup_shared_namespaces().await.map_ttrpc_err(same)?;
         }
 
-        let m = add_storages(sl(), req.storages.clone(), &self.sandbox, None)
-            .await
-            .map_ttrpc_err(same)?;
+        let mut image_digest = None;
+        let m = add_storages(
+            sl(),
+            req.storages.clone(),
+            &self.sandbox,
+            None,
+            &mut image_digest,
+        )
+        .await
+        .map_ttrpc_err(same)?;
         self.sandbox.lock().await.mounts = m;
 
         // Scan guest hooks upon creating new sandbox and append

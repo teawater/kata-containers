@@ -1,0 +1,33 @@
+//
+// Copyright (c) 2025 Ant Group
+//
+// SPDX-License-Identifier: Apache-2.0
+//
+
+syntax = "proto3";
+
+package grpc;
+
+import "google/protobuf/empty.proto";
+
+service attestation_agent {
+	// To handle https://github.com/containerd/ttrpc-rust/issues/273
+	rpc Unused(google.protobuf.Empty) returns (google.protobuf.Empty);
+
+	rpc EventsStream(google.protobuf.Empty) returns (stream Event);
+}
+
+message Event {
+	string type = 1;
+	string action = 2;
+	optional ContainerInfo container = 3;
+}
+
+message ContainerInfo {
+	string id = 1;
+	string app_name = 2;
+	string name = 3;
+	string image = 4;
+	string image_digest = 5;
+	uint64 pid = 6;
+}

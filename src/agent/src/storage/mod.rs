@@ -50,6 +50,7 @@ pub struct StorageContext<'a> {
     cid: &'a Option<String>,
     logger: &'a Logger,
     sandbox: &'a Arc<Mutex<Sandbox>>,
+    image_digest: Option<String>,
 }
 
 /// An implementation of generic storage device.
@@ -170,6 +171,7 @@ pub async fn add_storages(
     storages: Vec<Storage>,
     sandbox: &Arc<Mutex<Sandbox>>,
     cid: Option<String>,
+    image_digest: &mut Option<String>,
 ) -> Result<Vec<String>> {
     let mut mount_list = Vec::new();
 
@@ -193,6 +195,7 @@ pub async fn add_storages(
                 cid: &cid,
                 logger: &logger,
                 sandbox,
+                image_digest: None,
             };
 
             match handler.create_device(storage, &mut ctx).await {
@@ -224,6 +227,9 @@ pub async fn add_storages(
                             }
                             return Err(anyhow!("failed to update device for storage"));
                         }
+                    }
+                    if let Some(id) = image_digest {
+                        *image_digest = Some(id.clone());
                     }
                 }
                 Err(e) => {

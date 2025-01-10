@@ -37,3 +37,8 @@ pub mod confidential_data_hub_ttrpc;
 
 #[cfg(feature = "async")]
 pub mod confidential_data_hub_ttrpc_async;
+
+#[cfg(feature = "async")]
+pub mod attestation_agent;
+#[cfg(feature = "async")]
+pub mod attestation_agent_ttrpc;

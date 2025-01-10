@@ -93,6 +93,8 @@ cfg_if! {
     }
 }
 
+mod aa;
+
 const NAME: &str = "kata-agent";
 
 const UNIX_SOCKET_PREFIX: &str = "unix://";
@@ -425,7 +427,8 @@ async fn start_sandbox(
             "attestation binaries requested for launch not available"
         );
     } else {
-        init_attestation_components(logger, config).await?;
+        let aa = init_attestation_components(logger, config).await?;
+        sandbox.lock().await.attestation_agent = Some(aa);
     }
 
     let mut oma = None;
@@ -531,7 +534,10 @@ async fn launch_guest_component_procs(logger: &Logger, config: &AgentConfig) -> 
 // and the corresponding procs are enabled in the agent configuration. the process will be
 // launched in the background and the function will return immediately.
 // If the CDH is started, a CDH client will be instantiated and returned.
-async fn init_attestation_components(logger: &Logger, config: &AgentConfig) -> Result<()> {
+async fn init_attestation_components(
+    logger: &Logger,
+    config: &AgentConfig,
+) -> Result<aa::AttestationAgent> {
     launch_guest_component_procs(logger, config).await?;
 
     // If a CDH socket exists, initialize the CDH client and enable ocicrypt
@@ -551,7 +557,9 @@ async fn init_attestation_components(logger: &Logger, config: &AgentConfig) -> R
         ),
     }
 
-    Ok(())
+    let aa = aa::AttestationAgent::new().await?;
+
+    Ok(aa)
 }
 
 fn wait_for_path_to_exist(logger: &Logger, path: &str, timeout_secs: i32) -> Result<()> {
