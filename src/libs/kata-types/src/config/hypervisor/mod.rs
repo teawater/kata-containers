@@ -720,6 +720,24 @@ pub struct MemoryInfo {
     /// If swap_in_bytes and memory_limit_in_bytes is not set, the size should be default_memory.
     #[serde(default)]
     pub enable_guest_swap: bool,
+
+    /// If enable_guest_swap is enabled, the swap device will be created in the guest
+    /// at this path. Default "/run/kata-containers/swap".
+    #[serde(default = "default_guest_swap_path")]
+    pub guest_swap_path: String,
+
+    /// The threshold in seconds to create swap device in the guest.
+    /// Kata will wait guest_swap_create_threshold_secs seconds before creating swap device.
+    /// Default 60.
+    #[serde(default = "default_guest_swap_create_threshold_secs")]
+    pub guest_swap_create_threshold_secs: u64,
+}
+
+fn default_guest_swap_path() -> String {
+    "/run/kata-containers/swap".to_string()
+}
+fn default_guest_swap_create_threshold_secs() -> u64 {
+    60
 }
 
 impl MemoryInfo {
