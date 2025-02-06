@@ -315,7 +315,12 @@ impl CloudHypervisorInner {
             .ok_or("missing socket")
             .map_err(|e| anyhow!(e))?;
 
-        let disk_config = DiskConfig::try_from(device.config)?;
+        let mut disk_config = DiskConfig::try_from(device.config.clone())?;
+        if let Some(direct) = device.config.is_direct {
+            disk_config.direct = direct;
+        } else {
+            disk_config.direct = self.config.blockdev_info.block_device_cache_direct;
+        }
 
         let response = cloud_hypervisor_vm_blockdev_add(
             socket.try_clone().context("failed to clone socket")?,

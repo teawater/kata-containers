@@ -33,6 +33,10 @@ pub struct BlockConfig {
     /// drive is opened as read-write.
     pub is_readonly: bool,
 
+    /// Whether use of O_DIRECT (bypass the host page cache) is enabled.
+    /// If set to None, use config block_device_cache_direct.
+    pub is_direct: Option<bool>,
+
     /// Don't close `path_on_host` file when dropping the device.
     pub no_drop: bool,
 
