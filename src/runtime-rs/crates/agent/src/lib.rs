@@ -14,7 +14,7 @@ mod log_forwarder;
 mod sock;
 pub mod types;
 pub use types::{
-    ARPNeighbor, ARPNeighbors, AddArpNeighborRequest, AddSwapRequest, BlkioStatsEntry,
+    ARPNeighbor, ARPNeighbors, AddArpNeighborRequest, AddSwapRequest, AddSwapPathRequest, BlkioStatsEntry,
     CheckRequest, CloseStdinRequest, ContainerID, ContainerProcessID, CopyFileRequest,
     CreateContainerRequest, CreateSandboxRequest, Empty, ExecProcessRequest,
     GetGuestDetailsRequest, GetIPTablesRequest, GetIPTablesResponse, GuestDetailsResponse,
@@ -95,4 +95,5 @@ pub trait Agent: AgentManager + HealthService + Send + Sync {
     async fn resize_volume(&self, req: ResizeVolumeRequest) -> Result<Empty>;
     async fn get_guest_details(&self, req: GetGuestDetailsRequest) -> Result<GuestDetailsResponse>;
     async fn add_swap(&self, req: AddSwapRequest) -> Result<Empty>;
+    async fn add_swap_path(&self, req: AddSwapPathRequest) -> Result<Empty>;
 }
